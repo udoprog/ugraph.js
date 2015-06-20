@@ -16,27 +16,26 @@
 
   m.controller('UgraphExampleCtrl', function($scope){
     var sources = [];
-    var data = [];
 
     $scope.cadence = 500;
 
     for (var i = 0; i < 10; i++) {
       sources.push(generate($scope.cadence));
-      data.push([]);
     }
 
     $scope.sources = sources;
-    $scope.data = data;
+
     $scope.options = {
       renderer: 'stacked-line',
       highlight: true,
       zeroBased: true
     };
 
-    $scope.xval = null;
-
-    $scope.setxval = function(xval) {
-      $scope.xval = xval;
+    // state shared between each graph.
+    $scope.state = {
+      highlight: {x: null},
+      range: null,
+      focus: null
     };
   });
 
@@ -68,6 +67,10 @@
   </script>
 </head>
 <body>
+  <div ng-show="state.highlight.data.length" style="position: absolute; top: 10px; right: 10px; color: red; background-color: white; border: 1px solid black; padding: 5px;">
+    <div ng-repeat="s in state.highlight.data track by $index">{{s.stackValue + s.value}} ({{s.value}})</div>
+  </div>
+
   <div>
     <label>
       <span>Renderer:</span>
@@ -93,22 +96,24 @@
     </label>
   </div>
 
-  <div>highlight: {{xval}}</div>
+  <div>highlight: {x: {{state.highlight.x}}}</div>
+  <div>range: {{state.range}}</div>
+  <div>focus: {{state.focus}}</div>
 
   <div class="row" ng-repeat="source in sources">
     <canvas
        ugraph="source"
+       ugraph-auto-xval="state.highlight.x"
+       ugraph-auto-range="state.range"
+       ugraph-auto-focus="state.focus"
        ugraph-renderer="options.renderer"
        ugraph-highlight="options.highlight"
        ugraph-zero-based="options.zeroBased"
-       ugraph-xval="xval"
        ugraph-cadence="cadence"
-       ugraph-hover-highlighted="setxval($highlight.x); data[$index] = $highlight.data;"
+       ugraph-on-hover-highlighted="state.highlight = $highlight"
+       ugraph-on-drag-range="state.range = $range"
+       ugraph-on-focus="state.focus = $focus"
        style="width: 100%; height: 300px; background-color: white;" height="400" width="800"></canvas>
-
-    <div ng-show="data[$index].length" style="position: absolute; top: 0; color: red; background-color: white; border: 1px solid black; padding: 5px;">
-      <div ng-repeat="s in data[$index] track by $index">{{s.stackValue + s.value}} ({{s.value}})</div>
-    </div>
   </div>
 </body>
 </html>

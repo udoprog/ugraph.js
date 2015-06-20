@@ -26,24 +26,40 @@ If set to `true`, indicates that the time series should be stacked.
 
 If set to `true`, indicates that highlighting is enabled.
 
-#### `ugraph-xval`
+#### `ugraph-auto-xval`
 
 If set to anything but `null`, will attempt to find the given numeric value,
 and highlight it in the series unless a hover highlight is already active for
 the given graph.
 
-#### `ugraph-highlighted`
+#### `ugraph-auto-focus`
+
+Automatically set focus for the given graph.
+
+#### `ugraph-auto-range`
+
+Automatically set highlight range for the given graph.
+
+#### `ugraph-on-highlighted`
 
 A callback function that exposes the `$highlight` variable, which will be a
 highlight entry for the currently highlighted `x`, regardless of cause.
 
 See the *highlight structure* section for the structure of this variable.
 
-#### `ugraph-hover-highlighted`
+#### `ugraph-on-hover-highlighted`
 
 A callback function that exposes the `$highlight` variable, which will be a
 highlight entry for the currently highlighted `x` value caused by a user
 hovering the graph.
+
+#### `ugraph-on-drag-range`
+
+A callback function that exposes the current `$range` that is being dragged.
+
+#### `ugraph-on-focus`
+
+A callback that will be fired if this graph has focused.
 
 See the *highlight structure* section for the structure of this variable.
 
