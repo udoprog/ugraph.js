@@ -5,14 +5,25 @@
    * is active */
   var NoHighlight = {x: null, data: []};
 
+  var ClickThreshold = 5;
+
+  var DragStyle = 'rgba(0, 0, 0, 0.3)';
+
   var LineCap = 'round';
   var LineWidth = 2;
   var LineColors = [
-    {stroke: '#00A0B0', fill: '#DDD'},
-    {stroke: '#6A4A3C', fill: '#DDD'},
-    {stroke: '#CC333F', fill: '#DDD'},
-    {stroke: '#EB6841', fill: '#DDD'},
-    {stroke: '#EDC951', fill: '#DDD'}
+    {stroke: '#a6cee3'},
+    {stroke: '#1f78b4'},
+    {stroke: '#b2df8a'},
+    {stroke: '#33a02c'},
+    {stroke: '#fb9a99'},
+    {stroke: '#e31a1c'},
+    {stroke: '#fdbf6f'},
+    {stroke: '#ff7f00'},
+    {stroke: '#cab2d6'},
+    {stroke: '#6a3d9a'},
+    {stroke: '#ffff99'},
+    {stroke: '#b15928'}
   ];
 
   var HighlightCap = 'butt';
@@ -32,7 +43,7 @@
 
     this.source = null;
 
-    this.stacked = false;
+    this._renderer = UgraphCtrl.defaultRenderer;
     this.highlight = true;
     this.padding = 10;
     this.cadence = null;
@@ -48,11 +59,10 @@
     this.translation = {x: 0, y: 0};
     this._requested = false;
 
-    /* a specific zoomed-in area */
     this._focus = null;
 
     /* drag/drop */
-    this._dragstart = null;
+    this._drag = null;
     this._dragend = null;
     this._dragging = false;
 
@@ -147,18 +157,8 @@
     this.localhighlight = highlight;
   };
 
-  UgraphCtrl.prototype.reconcileDrag = function() {
-    if (this._dragstart === null || this._dragend === null || this._dragging)
-      return;
-
-    this._focus = {xstart: this._dragstart.x, xend: this._dragend.x};
-    this._dragstart = null;
-    this._dragend = null;
-  };
-
   UgraphCtrl.prototype.reconcile = function() {
     (this.localhover ? this.reconcileLocal : this.reconcileExternal).call(this);
-    this.reconcileDrag();
   };
 
   UgraphCtrl.prototype.render = function() {
@@ -168,6 +168,9 @@
 
     if (this.localhighlight !== NoHighlight && !!this.highlight)
       this.renderHighlight(this.localhighlight);
+
+    if (this._drag !== null)
+      this.renderDrag(this._drag);
 
     this._requested = false;
   };
@@ -181,112 +184,56 @@
     this._requested = true;
   };
 
-  UgraphCtrl.prototype.analyzeStacked = function(source) {
-    var xmin = Infinity, xmax = -Infinity;
-    var ymin = Infinity, ymax = -Infinity;
+  UgraphCtrl.prototype.updateRenderer = function(_) {
+    var renderer = UgraphCtrl.renderers[_];
 
-    var dst = [];
+    if (!renderer)
+      throw new Error('no such renderer: ' + String(_));
 
-    var stacking = {};
-
-    var i = -1, l = source.length;
-
-    while (++i < l) {
-      var series = source[i].data;
-      var si = -1, sl = series.length;
-      var data = [];
-
-      while (++si < sl) {
-        var p = series[si], x = p[0], y = p[1];
-        var y0 = stacking[x] || 0;
-
-        data.push([x, y, y0]);
-
-        stacking[x] = y0 + y;
-
-        var ys = y + y0;
-
-        xmin = Math.min(x, xmin);
-        xmax = Math.max(x, xmax);
-        ymin = Math.min(ys, ymin);
-        ymax = Math.max(ys, ymax);
-      }
-
-      dst.push({data: data});
-    }
-
-    return {
-      width: xmax - xmin, height: ymax - ymin,
-      xmin: xmin, xmax: xmax, ymin: ymin, ymax: ymax,
-      data: dst
-    };
-  };
-
-  UgraphCtrl.prototype.analyzeNormal = function(source) {
-    var i = -1, l = source.length;
-
-    var xmin = Infinity, xmax = -Infinity;
-    var ymin = Infinity, ymax = -Infinity;
-
-    var dst = [];
-
-    while (++i < l) {
-      var series = source[i].data;
-      var si = -1, sl = series.length;
-      var data = [];
-
-      while (++si < sl) {
-        var p = series[si], x = p[0], y = p[1];
-        data.push([x, y]);
-
-        xmin = Math.min(x, xmin);
-        xmax = Math.max(x, xmax);
-        ymin = Math.min(y, ymin);
-        ymax = Math.max(y, ymax);
-      }
-
-      dst.push({data: data});
-    }
-
-    return {
-      width: xmax - xmin, height: ymax - ymin,
-      xmin: xmin, xmax: xmax, ymin: ymin, ymax: ymax,
-      data: dst
-    };
+    this._renderer = renderer;
+    this.update();
   };
 
   UgraphCtrl.prototype.update = function(newSource) {
     if (!!newSource)
       this.source = newSource;
 
-    var graph = this.graphElement.getContext('2d');
+    this.element.width = this.width;
+    this.element.height = this.height;
 
     this.graphElement.width = this.width;
     this.graphElement.height = this.height;
 
-    this.element.width = this.width;
-    this.element.height = this.height;
+    var graph = this.graphElement.getContext('2d');
 
-    graph.clearRect(0, 0, this.width, this.height);
+    if (!graph)
+      throw new Error('failed to access backing graph element for rendering');
 
     if (!this.source)
       return;
 
-    var analyze = (this.stacked ? this.analyzeStacked : this.analyzeNormal).bind(this);
-    var analyzed = analyze(this.source);
+    var r = new this._renderer(this);
+
+    var axisCache = {};
+
+    var analyzed = r.calculate(
+      this.source,
+      (function(entry, x, y, y0) {
+        var axle = axisCache[x] || {x: x, data: []};
+        axle.data.push({entry: entry, value: y, stackValue: y0});
+        axisCache[x] = axle;
+
+        if (this._focus === null)
+          return true;
+
+        return this._focus.xstart <= x && this._focus.xend >= x;
+      }).bind(this));
 
     this.x.range([this.padding, this.width - this.padding]).domain([analyzed.xmin, analyzed.xmax]);
     this.y.range([this.height - this.padding, this.padding]).domain([analyzed.ymin, analyzed.ymax]);
 
-    var axisCache = {};
-
-    var r = (this.stacked ? this.renderStacked : this.renderNormal).bind(this);
-
-    r(graph, analyzed.data, function(entry, x, y, y0) {
-      var axle = axisCache[x] || {x: x, data: []};
-      axle.data.push({entry: entry, value: y, stackValue: y0});
-      axisCache[x] = axle;
-    });
+    graph.clearRect(0, 0, this.width, this.height);
+    r.render(graph, analyzed.data);
 
     var sorted = Object.keys(axisCache).map(function(k) {
       return axisCache[k];
@@ -314,48 +261,55 @@
 
   UgraphCtrl.prototype.mousedown = function(e) {
     var x = e.offsetX, y = e.offsetY;
-    this._dragstart = {x: x, y: y};
-    this._dragend = {x: x, y: y};
-    this._dragging = true;
+    this._drag = {x: x, y: y, xend: x, yend: y};
   };
 
   UgraphCtrl.prototype.mouseup = function(e) {
-    var dirty = false;
+    if (this._drag !== null)
+      this.stopDrag(e.offsetX, e.offsetY);
+  };
 
-    if (this._dragging) {
-      var x = e.offsetX, y = e.offsetY;
-      this._dragend = {x: x, y: y};
-      this._dragging = false;
-      dirty = true;
+  UgraphCtrl.prototype.stopDrag = function(x, y) {
+    if (this._drag === null)
+      return;
+
+    var xmx = Math.max(this._drag.x, x),
+        xmn = Math.min(this._drag.x, x),
+        diff = xmx - xmn;
+
+    this._drag = null;
+
+    if (diff < ClickThreshold) {
+      this._focus = null;
+    } else {
+      this._focus = {xstart: this.x.invert(xmn), xend: this.x.invert(xmx)};
     }
 
-    if (dirty)
-      this.requestRender();
+    this.update();
   };
 
   UgraphCtrl.prototype.mousemove = function(e) {
-    if (this._dragging) {
+    if (this._drag !== null) {
       var x = e.offsetX, y = e.offsetY;
-      this._dragend = {x: x, y: y};
+      this._drag.xend = e.offsetX;
+      this._drag.yend = e.offsetY;
     }
 
-    if (!this.highlight)
-      return;
-
-    this.localxpos = e.offsetX;
-    this.localhover = true;
-    this.requestRender();
+    if (this.highlight) {
+      this.localxpos = e.offsetX;
+      this.localhover = true;
+      this.requestRender();
+    }
   };
 
   UgraphCtrl.prototype.mouseleave = function(e) {
-    if (this._dragging) {
-      var x = e.offsetX, y = e.offsetY;
-      this._dragend = {x: x, y: y};
-      this._dragging = false;
-    }
+    if (this._drag !== null)
+      this.stopDrag(e.offsetX, e.offsetY);
 
-    this.localxpos = null;
-    this.requestRender();
+    if (this.localxpos !== null) {
+      this.localxpos = null;
+      this.requestRender();
+    }
   };
 
   UgraphCtrl.prototype.resize = function() {
@@ -375,6 +329,19 @@
 
     if (dirty)
       this.update();
+  };
+
+  UgraphCtrl.prototype.renderDrag = function(drag) {
+    var x1 = drag.x,
+        x2 = drag.xend,
+        ctx = this.context;
+
+    var xmn = Math.min(x1, x2),
+        xmx = Math.max(x1, x2),
+        w = xmx - xmn;
+
+    ctx.fillStyle = DragStyle;
+    ctx.fillRect(xmn, 0, w, this.height);
   };
 
   UgraphCtrl.prototype.renderHighlight = function(highlight) {
@@ -446,85 +413,75 @@
     return smallest;
   };
 
-  UgraphCtrl.prototype.renderNormalLine = function(ctx, entry, cb) {
+  function Ugraph_Renderer_Line(ctrl) {
+    this.ctrl = ctrl;
+  }
+
+  /**
+   * Perform initial calculation for a line graph.
+   */
+  Ugraph_Renderer_Line.prototype.calculate = function(source, cb) {
+    var i = -1, l = source.length;
+
+    var xmin = Infinity, xmax = -Infinity;
+    var ymin = Infinity, ymax = -Infinity;
+
+    var dst = [];
+
+    while (++i < l) {
+      var entry = source[i].data;
+      var si = -1, sl = entry.length;
+      var data = [];
+
+      while (++si < sl) {
+        var p = entry[si], x = p[0], y = p[1];
+        data.push([x, y]);
+
+        if (!cb(entry, x, y, null))
+          continue;
+
+        xmin = Math.min(x, xmin);
+        xmax = Math.max(x, xmax);
+        ymin = Math.min(y, ymin);
+        ymax = Math.max(y, ymax);
+      }
+
+      dst.push({data: data});
+    }
+
+    return {
+      width: xmax - xmin, height: ymax - ymin,
+      xmin: xmin, xmax: xmax, ymin: ymin, ymax: ymax,
+      data: dst
+    };
+  };
+
+  Ugraph_Renderer_Line.prototype.renderLine = function(ctx, entry) {
     var data = entry.data, l = data.length;
     var p, x, y, y0;
+
+    var xs = this.ctrl.x,
+        ys = this.ctrl.y;
 
     if (!l)
       return;
 
     p = data[0]; x = p[0]; y = p[1]; y0 = p[2];
-    cb(entry, x, y, y0);
 
     ctx.beginPath();
-    ctx.moveTo(this.x(x), this.y(y));
+    ctx.moveTo(xs(x), ys(y));
 
     var i = 0;
 
     while (++i < l) {
       p = data[i]; x = p[0]; y = p[1]; y0 = p[2];
-      cb(entry, x, y, y0);
-
-      ctx.lineTo(this.x(x), this.y(y));
+      ctx.lineTo(xs(x), ys(y));
     }
 
     ctx.stroke();
   };
 
-  UgraphCtrl.prototype.renderStackedFill = function(ctx, entry) {
-    var data = entry.data, l = data.length;
-    var p, x, y, y0;
-
-    if (!l)
-      return;
-
-    p = data[0]; x = p[0]; y = p[1]; y0 = p[2];
-
-    ctx.beginPath();
-    ctx.moveTo(this.x(x), this.y(y0));
-    ctx.lineTo(this.x(x), this.y(y0 + y));
-
-    var i = 0;
-
-    while (++i < l) {
-      p = data[i]; x = p[0]; y = p[1]; y0 = p[2];
-      ctx.lineTo(this.x(x), this.y(y0 + y));
-    }
-
-    while (--i >= 0) {
-      p = data[i]; x = p[0]; y = p[1]; y0 = p[2];
-      ctx.lineTo(this.x(x), this.y(y0));
-    }
-
-    ctx.closePath();
-    ctx.fill();
-  };
-
-  UgraphCtrl.prototype.renderStackedLine = function(ctx, entry, cb) {
-    var data = entry.data, l = data.length;
-    var p, x, y, y0;
-
-    if (!l)
-      return;
-
-    p = data[0]; x = p[0]; y = p[1]; y0 = p[2];
-    cb(entry, x, y, y0);
-
-    ctx.beginPath();
-    ctx.moveTo(this.x(x), this.y(y0 + y));
-
-    var i = 0;
-
-    while (++i < l) {
-      p = data[i]; x = p[0]; y = p[1]; y0 = p[2];
-      cb(entry, x, y, y0);
-      ctx.lineTo(this.x(x), this.y(y0 + y));
-    }
-
-    ctx.stroke();
-  };
-
-  UgraphCtrl.prototype.renderNormal = function(ctx, data, cb) {
+  Ugraph_Renderer_Line.prototype.render = function(ctx, data) {
     var i = -1, l = data.length;
 
     while (++i < l) {
@@ -533,20 +490,129 @@
       ctx.lineWidth = LineWidth;
       ctx.strokeStyle = LineColors[i % LineColors.length].stroke;
 
-      this.renderNormalLine(ctx, data[i], cb);
+      this.renderLine(ctx, data[i]);
     }
   };
 
-  UgraphCtrl.prototype.renderStacked = function(ctx, data, cb) {
+  function Ugraph_Renderer_StackedLine(ctrl) {
+    this.ctrl = ctrl;
+  }
+
+  /**
+   * Perform initial calculation for a stacked line graph.
+   */
+  Ugraph_Renderer_StackedLine.prototype.calculate = function(source, cb) {
+    var xmin = Infinity, xmax = -Infinity;
+    var ymin = Infinity, ymax = -Infinity;
+
+    var dst = [];
+
+    var stacking = {};
+
+    var i = -1, l = source.length;
+
+    while (++i < l) {
+      var entry = source[i].data;
+      var si = -1, sl = entry.length;
+      var data = [];
+
+      while (++si < sl) {
+        var p = entry[si], x = p[0], y = p[1];
+        var y0 = stacking[x] || 0;
+
+        data.push([x, y, y0]);
+        stacking[x] = y0 + y;
+
+        if (!cb(entry, x, y, y0))
+          continue;
+
+        var ys = y + y0;
+
+        xmin = Math.min(x, xmin);
+        xmax = Math.max(x, xmax);
+        ymin = Math.min(ys, ymin);
+        ymax = Math.max(ys, ymax);
+      }
+
+      dst.push({data: data});
+    }
+
+    return {
+      width: xmax - xmin, height: ymax - ymin,
+      xmin: xmin, xmax: xmax, ymin: ymin, ymax: ymax,
+      data: dst
+    };
+  };
+
+  Ugraph_Renderer_StackedLine.prototype.renderFill = function(ctx, entry) {
+    var data = entry.data, l = data.length;
+    var p, x, y, y0;
+
+    var xs = this.ctrl.x,
+        ys = this.ctrl.y;
+
+    if (!l)
+      return;
+
+    p = data[0]; x = p[0]; y = p[1]; y0 = p[2];
+
+    ctx.beginPath();
+    ctx.moveTo(xs(x), ys(y0));
+    ctx.lineTo(xs(x), ys(y0 + y));
+
+    var i = 0;
+
+    while (++i < l) {
+      p = data[i]; x = p[0]; y = p[1]; y0 = p[2];
+      ctx.lineTo(xs(x), ys(y0 + y));
+    }
+
+    while (--i >= 0) {
+      p = data[i]; x = p[0]; y = p[1]; y0 = p[2];
+      ctx.lineTo(xs(x), ys(y0));
+    }
+
+    ctx.closePath();
+    ctx.fill();
+  };
+
+  Ugraph_Renderer_StackedLine.prototype.renderLine = function(ctx, entry) {
+    var data = entry.data, l = data.length;
+    var p, x, y, y0;
+
+    var xs = this.ctrl.x,
+        ys = this.ctrl.y;
+
+    if (!l)
+      return;
+
+    p = data[0]; x = p[0]; y = p[1]; y0 = p[2];
+
+    ctx.beginPath();
+    ctx.moveTo(xs(x), ys(y0 + y));
+
+    var i = 0;
+
+    while (++i < l) {
+      p = data[i]; x = p[0]; y = p[1]; y0 = p[2];
+      ctx.lineTo(xs(x), ys(y0 + y));
+    }
+
+    ctx.stroke();
+  };
+
+  Ugraph_Renderer_StackedLine.prototype.render = function(ctx, data) {
     var i = -1, l = data.length, d;
 
     while (++i < l) {
       d = data[i];
 
-      // canvas settings
-      ctx.fillStyle = LineColors[i % LineColors.length].fill;
+      var color = LineColors[i % LineColors.length];
 
-      this.renderStackedFill(ctx, d);
+      // canvas settings
+      ctx.fillStyle = color.fill || color.stroke;
+
+      this.renderFill(ctx, d);
     }
 
     i = -1; l = data.length;
@@ -559,9 +625,16 @@
       ctx.lineWidth = LineWidth;
       ctx.strokeStyle = LineColors[i % LineColors.length].stroke;
 
-      this.renderStackedLine(ctx, d, cb);
+      this.renderLine(ctx, d);
     }
   };
+
+  UgraphCtrl.renderers = {
+    'line': Ugraph_Renderer_Line,
+    'stacked-line': Ugraph_Renderer_StackedLine
+  };
+
+  UgraphCtrl.defaultRenderer = Ugraph_Renderer_Line;
 
   m.directive('ugraph', function($parse, $window) {
     return {
@@ -595,10 +668,9 @@
           });
         }
 
-        if (!!$attr.ugraphStacked) {
-          $scope.$watch($attr.ugraphStacked, function(stacked) {
-            ctrl.stacked = !!stacked;
-            ctrl.update();
+        if (!!$attr.ugraphRenderer) {
+          $scope.$watch($attr.ugraphRenderer, function(renderer) {
+            ctrl.updateRenderer(renderer);
           });
         }
 
@@ -610,8 +682,23 @@
         }
 
         if (!!$attr.ugraphPadding) {
-          $scope.$watch($attr.ugraphPadding, function(padding) {
-            ctrl.padding = !!padding;
+          $scope.$watch($attr.ugraphPadding, function(_) {
+            _ = !!_;
+
+            if (ctrl.padding === _)
+              return;
+
+            ctrl.padding = _;
+            ctrl.update();
+          });
+        }
+
+        if (!!$attr.ugraphCadence) {
+          $scope.$watch($attr.ugraphCadence, function(_) {
+            if (ctrl.cadence === _)
+              return;
+
+            ctrl.cadence = _;
             ctrl.update();
           });
         }

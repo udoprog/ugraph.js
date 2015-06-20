@@ -18,15 +18,17 @@
     var sources = [];
     var data = [];
 
+    $scope.cadence = 500;
+
     for (var i = 0; i < 10; i++) {
-      sources.push(generate());
+      sources.push(generate($scope.cadence));
       data.push([]);
     }
 
     $scope.sources = sources;
     $scope.data = data;
     $scope.options = {
-      stacked: true,
+      renderer: 'stacked-line',
       highlight: true
     };
 
@@ -43,7 +45,7 @@
 
   function generate() {
     var d = [];
-    var count = 40;
+    var count = 20;
 
     for (var i = 0; i < count; i++) {
       var s = {data: []};
@@ -51,9 +53,12 @@
       var start = 0 + Math.floor(Math.random() * 20);
       var end = 40 + Math.floor(Math.random() * 20);
 
-      var min = i * 50;
+      var min = 50;
 
       for (var j = start; j < end; j++) {
+        if (Math.random() > 0.8)
+          continue;
+
         s.data.push([j * 500, Math.floor(min + (Math.random() * 50))]);
       }
 
@@ -68,8 +73,11 @@
 <body>
   <div>
     <label>
-      <span>Stacked:</span>
-      <input type="checkbox" ng-model="options.stacked" />
+      <span>Renderer:</span>
+      <select ng-model="options.renderer">
+        <option value="line">Line</option>
+        <option value="stacked-line">Stacked Line</option>
+      </select>
     </label>
 
     <label>
@@ -83,15 +91,15 @@
   <div class="row" ng-repeat="source in sources">
     <canvas
        ugraph="source"
-       ugraph-stacked="options.stacked"
+       ugraph-renderer="options.renderer"
        ugraph-highlight="options.highlight"
        ugraph-xval="xval"
+       ugraph-cadence="cadence"
        ugraph-hover-highlighted="setxval($highlight.x); data[$index] = $highlight.data;"
        style="width: 100%; height: 300px; background-color: white;" height="400" width="800"></canvas>
 
     <div ng-show="data[$index].length" style="position: absolute; top: 0; color: red; background-color: white; border: 1px solid black; padding: 5px;">
-      <div ng-if="options.stacked" ng-repeat="s in data[$index] track by $index">{{s.stackValue + s.value}} ({{s.value}})</div>
-      <div ng-if="!options.stacked" ng-repeat="s in data[$index] track by $index">{{s.value}}</div>
+      <div ng-repeat="s in data[$index] track by $index">{{s.stackValue + s.value}} ({{s.value}})</div>
     </div>
   </div>
 </body>
