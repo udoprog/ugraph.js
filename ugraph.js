@@ -65,6 +65,7 @@
     this._focus = null;
 
     /* drag/drop */
+    this._localdrag = false;
     this._drag = null;
     this._dragend = null;
     this._dragging = false;
@@ -73,12 +74,12 @@
     this.width = this.element.offsetWidth;
 
     /* local hover position */
-    this.localxpos = null;
-    this.localhover = false;
+    this._localxpos = null;
+    this._localhover = false;
 
     /* current position being updated through hovering */
-    this.externalxval = null;
-    this.previousxval = null;
+    this._externalxval = null;
+    this._previousxval = null;
 
     /* local highlight */
     this.localhighlight = NoHighlight;
@@ -115,19 +116,19 @@
    */
   UgraphCtrl.prototype.reconcileLocal = function() {
     /* just left hovered area */
-    if (this.localxpos === null) {
+    if (this._localxpos === null) {
       if (this.localhighlight == NoHighlight) {
-        this.localhover = false;
+        this._localhover = false;
         return;
       }
 
       this.__highlightAll(NoHighlight);
       this.localhighlight = NoHighlight;
-      this.localhover = false;
+      this._localhover = false;
       return;
     }
 
-    var highlight = this.findHighlighted(this.x.invert(this.localxpos));
+    var highlight = this.findHighlighted(this.x.invert(this._localxpos));
 
     if (this.localhighlight === highlight)
       return;
@@ -141,23 +142,23 @@
    * through ugraph-xval
    */
   UgraphCtrl.prototype.reconcileExternal = function() {
-    if (this.externalxval === null) {
+    if (this._externalxval === null) {
       if (this.localhighlight == NoHighlight)
         return;
 
       this.__highlight(NoHighlight);
-      this.previousxval = null;
+      this._previousxval = null;
       this.localhighlight = NoHighlight;
       return;
     }
 
     /* external value has not changed */
-    if (this.externalxval === this.previousxval)
+    if (this._externalxval === this._previousxval)
       return;
 
-    this.previousxval = this.externalxval;
+    this._previousxval = this._externalxval;
 
-    var highlight = this.findExactHighlighted(this.externalxval);
+    var highlight = this.findExactHighlighted(this._externalxval);
 
     /* nothing has changed */
     if (this.localhighlight === highlight)
@@ -168,15 +169,16 @@
   };
 
   UgraphCtrl.prototype.reconcile = function() {
-    (this.localhover ? this.reconcileLocal : this.reconcileExternal).call(this);
+    (this._localhover ? this.reconcileLocal : this.reconcileExternal).call(this);
   };
 
   UgraphCtrl.prototype.render = function() {
     this.reconcile();
+
     this.context.clearRect(0, 0, this.width, this.height);
     this.context.drawImage(this.graphElement, this.translation.x, this.translation.y);
 
-    if (this.localhighlight !== NoHighlight && !!this.highlight)
+    if (this.localhighlight !== NoHighlight && !!this.highlight && this._drag === null)
       this.renderHighlight(this.localhighlight);
 
     if (this._drag !== null)
@@ -271,6 +273,7 @@
 
   UgraphCtrl.prototype.mousedown = function(e) {
     var x = e.offsetX, y = e.offsetY;
+    this._localdrag = true;
     this._drag = {x: x, y: y, xend: x, yend: y};
   };
 
@@ -280,6 +283,8 @@
   };
 
   UgraphCtrl.prototype.stopDrag = function(x, y) {
+    this._localdrag = false;
+
     if (this._drag === null)
       return;
 
@@ -306,8 +311,8 @@
     }
 
     if (this.highlight) {
-      this.localxpos = e.offsetX;
-      this.localhover = true;
+      this._localxpos = e.offsetX;
+      this._localhover = true;
       this.requestRender();
     }
   };
@@ -316,8 +321,8 @@
     if (this._drag !== null)
       this.stopDrag(e.offsetX, e.offsetY);
 
-    if (this.localxpos !== null) {
-      this.localxpos = null;
+    if (this._localxpos !== null) {
+      this._localxpos = null;
       this.requestRender();
     }
   };
@@ -350,8 +355,14 @@
         xmx = Math.max(x1, x2),
         w = xmx - xmn;
 
+    if (w < ClickThreshold)
+      return;
+
+    var h = this.height - this.padding * 2;
+
     ctx.fillStyle = DragStyle;
-    ctx.fillRect(xmn, 0, w, this.height);
+    ctx.fillRect(this.padding, this.padding, xmn - this.padding, h);
+    ctx.fillRect(xmx, this.padding, this.width - xmx - this.padding, h);
   };
 
   UgraphCtrl.prototype.renderHighlight = function(highlight) {
@@ -719,19 +730,6 @@
 
       this.renderFill(ctx, d);
     }
-
-    i = -1; l = data.length;
-
-    while (++i < l) {
-      d = data[i];
-
-      // canvas settings
-      ctx.lineCap = LineCap;
-      ctx.lineWidth = LineWidth;
-      ctx.strokeStyle = LineColors[i % LineColors.length].stroke;
-
-      this.renderLine(ctx, d);
-    }
   };
 
   UgraphCtrl.renderers = {
@@ -768,7 +766,7 @@
         if (!!$attr.ugraphXval) {
           /* watch for updates on x value to change highlighting */
           $scope.$watch($attr.ugraphXval, function(xval) {
-            ctrl.externalxval = xval;
+            ctrl._externalxval = xval;
             ctrl.requestRender();
           });
         }
