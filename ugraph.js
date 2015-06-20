@@ -48,6 +48,14 @@
     this.translation = {x: 0, y: 0};
     this._requested = false;
 
+    /* a specific zoomed-in area */
+    this._focus = null;
+
+    /* drag/drop */
+    this._dragstart = null;
+    this._dragend = null;
+    this._dragging = false;
+
     this.height = this.element.offsetHeight;
     this.width = this.element.offsetWidth;
 
@@ -139,8 +147,18 @@
     this.localhighlight = highlight;
   };
 
+  UgraphCtrl.prototype.reconcileDrag = function() {
+    if (this._dragstart === null || this._dragend === null || this._dragging)
+      return;
+
+    this._focus = {xstart: this._dragstart.x, xend: this._dragend.x};
+    this._dragstart = null;
+    this._dragend = null;
+  };
+
   UgraphCtrl.prototype.reconcile = function() {
     (this.localhover ? this.reconcileLocal : this.reconcileExternal).call(this);
+    this.reconcileDrag();
   };
 
   UgraphCtrl.prototype.render = function() {
@@ -294,7 +312,33 @@
     this.requestRender();
   };
 
+  UgraphCtrl.prototype.mousedown = function(e) {
+    var x = e.offsetX, y = e.offsetY;
+    this._dragstart = {x: x, y: y};
+    this._dragend = {x: x, y: y};
+    this._dragging = true;
+  };
+
+  UgraphCtrl.prototype.mouseup = function(e) {
+    var dirty = false;
+
+    if (this._dragging) {
+      var x = e.offsetX, y = e.offsetY;
+      this._dragend = {x: x, y: y};
+      this._dragging = false;
+      dirty = true;
+    }
+
+    if (dirty)
+      this.requestRender();
+  };
+
   UgraphCtrl.prototype.mousemove = function(e) {
+    if (this._dragging) {
+      var x = e.offsetX, y = e.offsetY;
+      this._dragend = {x: x, y: y};
+    }
+
     if (!this.highlight)
       return;
 
@@ -303,7 +347,13 @@
     this.requestRender();
   };
 
-  UgraphCtrl.prototype.mouseleave = function() {
+  UgraphCtrl.prototype.mouseleave = function(e) {
+    if (this._dragging) {
+      var x = e.offsetX, y = e.offsetY;
+      this._dragend = {x: x, y: y};
+      this._dragging = false;
+    }
+
     this.localxpos = null;
     this.requestRender();
   };
@@ -572,15 +622,21 @@
 
         var $w = angular.element($window);
 
+        var mousedown = ctrl.mousedown.bind(ctrl);
+        var mouseup = ctrl.mouseup.bind(ctrl);
         var mousemove = ctrl.mousemove.bind(ctrl);
         var mouseleave = ctrl.mouseleave.bind(ctrl);
         var resize = ctrl.resize.bind(ctrl);
 
+        $element.bind('mousedown', mousedown);
+        $element.bind('mouseup', mouseup);
         $element.bind('mousemove', mousemove);
         $element.bind('mouseleave', mouseleave);
         $w.bind('resize', resize);
 
         $scope.$on('$destroy', function() {
+          $element.unbind('mousedown', mousedown);
+          $element.unbind('mouseup', mouseup);
           $element.unbind('mousemove', mousemove);
           $element.unbind('mouseleave', mousemove);
           $w.unbind('resize', resize);
