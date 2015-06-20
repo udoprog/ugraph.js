@@ -44,6 +44,9 @@
     this.source = null;
 
     this._renderer = UgraphCtrl.defaultRenderer;
+
+    /* options */
+    this.zeroBased = false;
     this.highlight = true;
     this.padding = 10;
     this.cadence = null;
@@ -99,6 +102,13 @@
       }.bind(this));
     };
   }
+
+  UgraphCtrl.prototype.gap = function(diff) {
+    if (this.cadence === null)
+      return false;
+
+    return diff > this.cadence;
+  };
 
   /**
    * Update state caused by this graph being hovered.
@@ -413,14 +423,7 @@
     return smallest;
   };
 
-  function Ugraph_Renderer_Line(ctrl) {
-    this.ctrl = ctrl;
-  }
-
-  /**
-   * Perform initial calculation for a line graph.
-   */
-  Ugraph_Renderer_Line.prototype.calculate = function(source, cb) {
+  function Ugraph_Calculate_Normal(source, cb) {
     var i = -1, l = source.length;
 
     var xmin = Infinity, xmax = -Infinity;
@@ -454,54 +457,45 @@
       xmin: xmin, xmax: xmax, ymin: ymin, ymax: ymax,
       data: dst
     };
-  };
-
-  Ugraph_Renderer_Line.prototype.renderLine = function(ctx, entry) {
-    var data = entry.data, l = data.length;
-    var p, x, y, y0;
-
-    var xs = this.ctrl.x,
-        ys = this.ctrl.y;
-
-    if (!l)
-      return;
-
-    p = data[0]; x = p[0]; y = p[1]; y0 = p[2];
-
-    ctx.beginPath();
-    ctx.moveTo(xs(x), ys(y));
-
-    var i = 0;
-
-    while (++i < l) {
-      p = data[i]; x = p[0]; y = p[1]; y0 = p[2];
-      ctx.lineTo(xs(x), ys(y));
-    }
-
-    ctx.stroke();
-  };
-
-  Ugraph_Renderer_Line.prototype.render = function(ctx, data) {
-    var i = -1, l = data.length;
-
-    while (++i < l) {
-      // canvas settings
-      ctx.lineCap = LineCap;
-      ctx.lineWidth = LineWidth;
-      ctx.strokeStyle = LineColors[i % LineColors.length].stroke;
-
-      this.renderLine(ctx, data[i]);
-    }
-  };
-
-  function Ugraph_Renderer_StackedLine(ctrl) {
-    this.ctrl = ctrl;
   }
 
-  /**
-   * Perform initial calculation for a stacked line graph.
-   */
-  Ugraph_Renderer_StackedLine.prototype.calculate = function(source, cb) {
+  function Ugraph_Calculate_ZeroBased(source, cb) {
+    var i = -1, l = source.length;
+
+    var xmin = Infinity, xmax = -Infinity;
+    var ymin = 0, ymax = -Infinity;
+
+    var dst = [];
+
+    while (++i < l) {
+      var entry = source[i].data;
+      var si = -1, sl = entry.length;
+      var data = [];
+
+      while (++si < sl) {
+        var p = entry[si], x = p[0], y = p[1];
+        data.push([x, y]);
+
+        if (!cb(entry, x, y, null))
+          continue;
+
+        xmin = Math.min(x, xmin);
+        xmax = Math.max(x, xmax);
+        ymin = Math.min(y, ymin);
+        ymax = Math.max(y, ymax);
+      }
+
+      dst.push({data: data});
+    }
+
+    return {
+      width: xmax - xmin, height: ymax - ymin,
+      xmin: xmin, xmax: xmax, ymin: ymin, ymax: ymax,
+      data: dst
+    };
+  }
+
+  function Ugraph_Calculate_Stacked(source, cb) {
     var xmin = Infinity, xmax = -Infinity;
     var ymin = Infinity, ymax = -Infinity;
 
@@ -530,7 +524,7 @@
 
         xmin = Math.min(x, xmin);
         xmax = Math.max(x, xmax);
-        ymin = Math.min(ys, ymin);
+        ymin = Math.min(y0, ymin);
         ymax = Math.max(ys, ymax);
       }
 
@@ -542,11 +536,31 @@
       xmin: xmin, xmax: xmax, ymin: ymin, ymax: ymax,
       data: dst
     };
+  }
+
+  function Ugraph_Calculate_Default() {
+    if (!this.ctrl.zeroBased)
+      return Ugraph_Calculate_Normal.apply(this, arguments);
+
+    return Ugraph_Calculate_ZeroBased.apply(this, arguments);
+  }
+
+  function Ugraph_Renderer_Line(ctrl) {
+    this.ctrl = ctrl;
+  }
+
+  /**
+   * Perform initial calculation for a line graph.
+   */
+  Ugraph_Renderer_Line.prototype.calculate = Ugraph_Calculate_Default;
+
+  Ugraph_Renderer_Line.prototype.gap = function(p, c) {
+    return this.ctrl.gap(c[0] - p[0]);
   };
 
-  Ugraph_Renderer_StackedLine.prototype.renderFill = function(ctx, entry) {
+  Ugraph_Renderer_Line.prototype.renderLine = function(ctx, entry) {
     var data = entry.data, l = data.length;
-    var p, x, y, y0;
+    var prev, p, x, y, y0;
 
     var xs = this.ctrl.x,
         ys = this.ctrl.y;
@@ -557,28 +571,110 @@
     p = data[0]; x = p[0]; y = p[1]; y0 = p[2];
 
     ctx.beginPath();
-    ctx.moveTo(xs(x), ys(y0));
-    ctx.lineTo(xs(x), ys(y0 + y));
+    ctx.moveTo(xs(x), ys(y));
 
     var i = 0;
 
+    prev = p;
+
     while (++i < l) {
       p = data[i]; x = p[0]; y = p[1]; y0 = p[2];
+
+      if (this.gap(prev, p)) {
+        ctx.moveTo(xs(x), ys(y));
+      } else {
+        ctx.lineTo(xs(x), ys(y));
+      }
+
+      prev = p;
+    }
+
+    ctx.stroke();
+  };
+
+  Ugraph_Renderer_Line.prototype.render = function(ctx, data) {
+    var i = -1, l = data.length;
+
+    while (++i < l) {
+      // canvas settings
+      ctx.lineCap = LineCap;
+      ctx.lineWidth = LineWidth;
+      ctx.strokeStyle = LineColors[i % LineColors.length].stroke;
+
+      this.renderLine(ctx, data[i]);
+    }
+  };
+
+  function Ugraph_Renderer_StackedLine(ctrl) {
+    this.ctrl = ctrl;
+  }
+
+  /**
+   * Perform initial calculation for a stacked line graph.
+   */
+  Ugraph_Renderer_StackedLine.prototype.calculate = Ugraph_Calculate_Stacked;
+
+  /**
+   * Renders fills, including gap calculations.
+   *
+   * Fills are areas below the line that fills all from y0 - y over the x-axis.
+   */
+  Ugraph_Renderer_StackedLine.prototype.renderFill = function(ctx, entry) {
+    var data = entry.data;
+    var p, x, y, y0;
+
+    var xs = this.ctrl.x,
+        ys = this.ctrl.y;
+
+    var index = 0, length = data.length;
+
+    if (!length)
+      return;
+
+    while (index < length) {
+      var i = index;
+
+      p = data[i++]; x = p[0]; y = p[1]; y0 = p[2];
+
+      ctx.beginPath();
       ctx.lineTo(xs(x), ys(y0 + y));
-    }
 
-    while (--i >= 0) {
-      p = data[i]; x = p[0]; y = p[1]; y0 = p[2];
-      ctx.lineTo(xs(x), ys(y0));
-    }
+      /* previous datapoint for gap calculation */
+      var prev = p;
 
-    ctx.closePath();
-    ctx.fill();
+      while (i < length) {
+        p = data[i]; x = p[0]; y = p[1]; y0 = p[2];
+
+        if (this.gap(prev, p))
+          break;
+
+        ++i;
+        ctx.lineTo(xs(x), ys(y0 + y));
+        prev = p;
+      }
+
+      var backTo = index;
+      index = i;
+      --i;
+
+      while (i >= backTo) {
+        p = data[i]; x = p[0]; y = p[1]; y0 = p[2];
+        ctx.lineTo(xs(x), ys(y0));
+        --i;
+      }
+
+      ctx.closePath();
+      ctx.fill();
+    }
+  };
+
+  Ugraph_Renderer_StackedLine.prototype.gap = function(p, c) {
+    return this.ctrl.gap(c[0] - p[0]);
   };
 
   Ugraph_Renderer_StackedLine.prototype.renderLine = function(ctx, entry) {
     var data = entry.data, l = data.length;
-    var p, x, y, y0;
+    var prev, p, x, y, y0;
 
     var xs = this.ctrl.x,
         ys = this.ctrl.y;
@@ -593,9 +689,18 @@
 
     var i = 0;
 
+    prev = p;
+
     while (++i < l) {
       p = data[i]; x = p[0]; y = p[1]; y0 = p[2];
-      ctx.lineTo(xs(x), ys(y0 + y));
+
+      if (this.gap(prev, p)) {
+        ctx.moveTo(xs(x), ys(y0 + y));
+      } else {
+        ctx.lineTo(xs(x), ys(y0 + y));
+      }
+
+      prev = p;
     }
 
     ctx.stroke();
@@ -677,7 +782,6 @@
         if (!!$attr.ugraphHighlight) {
           $scope.$watch($attr.ugraphHighlight, function(highlight) {
             ctrl.highlight = !!highlight;
-            ctrl.update();
           });
         }
 
@@ -699,6 +803,18 @@
               return;
 
             ctrl.cadence = _;
+            ctrl.update();
+          });
+        }
+
+        if (!!$attr.ugraphZeroBased) {
+          $scope.$watch($attr.ugraphZeroBased, function(_) {
+            _ = !!_;
+
+            if (ctrl.zeroBased === _)
+              return;
+
+            ctrl.zeroBased = _;
             ctrl.update();
           });
         }

@@ -29,7 +29,8 @@
     $scope.data = data;
     $scope.options = {
       renderer: 'stacked-line',
-      highlight: true
+      highlight: true,
+      zeroBased: true
     };
 
     $scope.xval = null;
@@ -37,15 +38,11 @@
     $scope.setxval = function(xval) {
       $scope.xval = xval;
     };
-
-    $scope.sethighlight = function(hl) {
-      $scope.s1h = hl;
-    };
   });
 
   function generate() {
     var d = [];
-    var count = 20;
+    var count = 500;
 
     for (var i = 0; i < count; i++) {
       var s = {data: []};
@@ -56,7 +53,7 @@
       var min = 50;
 
       for (var j = start; j < end; j++) {
-        if (Math.random() > 0.8)
+        if (Math.random() > 0.99)
           continue;
 
         s.data.push([j * 500, Math.floor(min + (Math.random() * 50))]);
@@ -84,6 +81,16 @@
       <span>Highlight:</span>
       <input type="checkbox" ng-model="options.highlight" />
     </label>
+
+    <label>
+      <span>Zero Based:</span>
+      <input type="checkbox" ng-model="options.zeroBased" />
+    </label>
+
+    <label>
+      <span>Cadence:</span>
+      <input type="number" ng-model="cadence" />
+    </label>
   </div>
 
   <div>highlight: {{xval}}</div>
@@ -93,6 +100,7 @@
        ugraph="source"
        ugraph-renderer="options.renderer"
        ugraph-highlight="options.highlight"
+       ugraph-zero-based="options.zeroBased"
        ugraph-xval="xval"
        ugraph-cadence="cadence"
        ugraph-hover-highlighted="setxval($highlight.x); data[$index] = $highlight.data;"
