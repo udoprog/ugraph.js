@@ -32,6 +32,13 @@
   var HighlightWidth = 3;
   var HighlightColor = 'rgba(0, 0, 0, 1.0)';
 
+  var Renderers = {
+    'line': Ugraph_Renderer_Line,
+    'stacked-line': Ugraph_Renderer_StackedLine
+  };
+
+  var DefaultRenderer = Ugraph_Renderer_Line;
+
   function UgraphCtrl($scope, $element) {
     this.$scope = $scope;
 
@@ -45,10 +52,9 @@
 
     this.source = null;
 
-    this._renderer = UgraphCtrl.defaultRenderer;
-
     /* options */
     this.zeroBased = false;
+
     this.highlight = true;
     this.padding = 10;
     this.cadence = null;
@@ -65,6 +71,11 @@
     this.width = this.element.offsetWidth;
 
     this.translation = {x: 0, y: 0};
+
+    this.__gap = this.gap.bind(this);
+    this.__zeroBased = (function() { return this.zeroBased; }).bind(this);
+
+    this._renderer = DefaultRenderer;
 
     /* if there is an active animation frame request */
     this._requested = false;
@@ -138,11 +149,11 @@
     };
   }
 
-  UgraphCtrl.prototype.gap = function(diff) {
+  UgraphCtrl.prototype.gap = function(p1, p2) {
     if (this.cadence === null)
       return false;
 
-    return diff > this.cadence;
+    return (p2[0] - p1[0]) > this.cadence;
   };
 
   /**
@@ -290,7 +301,7 @@
   };
 
   UgraphCtrl.prototype.updateRenderer = function(_) {
-    var renderer = UgraphCtrl.renderers[_];
+    var renderer = Renderers[_];
 
     if (!renderer)
       throw new Error('no such renderer: ' + String(_));
@@ -320,11 +331,15 @@
     if (!this.source)
       return;
 
-    var r = new this._renderer(this);
-
     var highlightCache = {};
 
-    var analyzed = r.calculate(
+    var r = this._renderer()
+      .x(this.x)
+      .y(this.y)
+      .gap(this.__gap)
+      .zeroBased(this.__zeroBased);
+
+    var calculated = r.calculate(
       this.source,
       (function(entry, x, y, y0) {
         var axle = highlightCache[x] || {x: x, data: []};
@@ -337,10 +352,11 @@
         return this._focus.xstart <= x && this._focus.xend >= x;
       }).bind(this));
 
-    var xmin = analyzed.xmin,
-        xmax = analyzed.xmax,
-        ymin = analyzed.ymin,
-        ymax = analyzed.ymax;
+    var xmin = calculated.xmin,
+        xmax = calculated.xmax,
+        ymin = calculated.ymin,
+        ymax = calculated.ymax,
+        data = calculated.data;
 
     if (this._focus !== NoFocus) {
       xmin = this._focus.xstart;
@@ -351,7 +367,7 @@
     this.y.range([this.height - this.padding, this.padding]).domain([ymin, ymax]);
 
     graph.clearRect(0, 0, this.width, this.height);
-    r.render(graph, analyzed.data);
+    r(graph, data);
 
     var sorted = Object.keys(highlightCache).map(function(k) {
       return highlightCache[k];
@@ -666,195 +682,192 @@
     };
   }
 
-  function Ugraph_Calculate_Default() {
-    if (!this.ctrl.zeroBased)
-      return Ugraph_Calculate_Normal.apply(this, arguments);
+  function Ugraph_Renderer_Line() {
+    var xs = d3.identity,
+        xy = d3.identity,
+        gap = d3.functor(false),
+        zeroBased = d3.functor(false);
 
-    return Ugraph_Calculate_ZeroBased.apply(this, arguments);
-  }
+    var calculator = function(source, cb) {
+      if (zeroBased())
+        return Ugraph_Calculate_ZeroBased(source, cb);
 
-  function Ugraph_Renderer_Line(ctrl) {
-    this.ctrl = ctrl;
-  }
+      return Ugraph_Calculate_Normal(source, cb);
+    };
 
-  /**
-   * Perform initial calculation for a line graph.
-   */
-  Ugraph_Renderer_Line.prototype.calculate = Ugraph_Calculate_Default;
+    var renderLine = function(ctx, entry) {
+      var data = entry.data, l = data.length;
+      var prev, p, x, y, y0;
 
-  Ugraph_Renderer_Line.prototype.gap = function(p, c) {
-    return this.ctrl.gap(c[0] - p[0]);
-  };
+      if (!l)
+        return;
 
-  Ugraph_Renderer_Line.prototype.renderLine = function(ctx, entry) {
-    var data = entry.data, l = data.length;
-    var prev, p, x, y, y0;
-
-    var xs = this.ctrl.x,
-        ys = this.ctrl.y;
-
-    if (!l)
-      return;
-
-    p = data[0]; x = p[0]; y = p[1]; y0 = p[2];
-
-    ctx.beginPath();
-    ctx.moveTo(xs(x), ys(y));
-
-    var i = 0;
-
-    prev = p;
-
-    while (++i < l) {
-      p = data[i]; x = p[0]; y = p[1]; y0 = p[2];
-
-      if (this.gap(prev, p)) {
-        ctx.moveTo(xs(x), ys(y));
-      } else {
-        ctx.lineTo(xs(x), ys(y));
-      }
-
-      prev = p;
-    }
-
-    ctx.stroke();
-  };
-
-  Ugraph_Renderer_Line.prototype.render = function(ctx, data) {
-    var i = -1, l = data.length;
-
-    while (++i < l) {
-      // canvas settings
-      ctx.lineCap = LineCap;
-      ctx.lineWidth = LineWidth;
-      ctx.strokeStyle = LineColors[i % LineColors.length].stroke;
-
-      this.renderLine(ctx, data[i]);
-    }
-  };
-
-  function Ugraph_Renderer_StackedLine(ctrl) {
-    this.ctrl = ctrl;
-  }
-
-  /**
-   * Perform initial calculation for a stacked line graph.
-   */
-  Ugraph_Renderer_StackedLine.prototype.calculate = Ugraph_Calculate_Stacked;
-
-  /**
-   * Renders fills, including gap calculations.
-   *
-   * Fills are areas below the line that fills all from y0 - y over the x-axis.
-   */
-  Ugraph_Renderer_StackedLine.prototype.renderFill = function(ctx, entry) {
-    var data = entry.data;
-    var p, x, y, y0;
-
-    var xs = this.ctrl.x,
-        ys = this.ctrl.y;
-
-    var index = 0, length = data.length;
-
-    if (!length)
-      return;
-
-    while (index < length) {
-      var i = index;
-
-      p = data[i++]; x = p[0]; y = p[1]; y0 = p[2];
+      p = data[0]; x = p[0]; y = p[1]; y0 = p[2];
 
       ctx.beginPath();
-      ctx.lineTo(xs(x), ys(y0 + y));
+      ctx.moveTo(xs(x), ys(y));
 
-      /* previous datapoint for gap calculation */
-      var prev = p;
+      var i = 0;
 
-      while (i < length) {
+      prev = p;
+
+      while (++i < l) {
         p = data[i]; x = p[0]; y = p[1]; y0 = p[2];
 
-        if (this.gap(prev, p))
-          break;
+        if (gap(prev, p)) {
+          ctx.moveTo(xs(x), ys(y));
+        } else {
+          ctx.lineTo(xs(x), ys(y));
+        }
 
-        ++i;
-        ctx.lineTo(xs(x), ys(y0 + y));
         prev = p;
       }
 
-      var backTo = index;
-      index = i;
-      --i;
+      ctx.stroke();
+    };
 
-      while (i >= backTo) {
-        p = data[i]; x = p[0]; y = p[1]; y0 = p[2];
-        ctx.lineTo(xs(x), ys(y0));
-        --i;
+    var renderer = function(ctx, data) {
+      var i = -1, l = data.length;
+
+      while (++i < l) {
+        // canvas settings
+        ctx.lineCap = LineCap;
+        ctx.lineWidth = LineWidth;
+        ctx.strokeStyle = LineColors[i % LineColors.length].stroke;
+
+        renderLine(ctx, data[i]);
       }
+    };
 
-      ctx.closePath();
-      ctx.fill();
-    }
-  };
+    renderer.calculate = function(source, cb) {
+      return calculator(source, cb);
+    };
 
-  Ugraph_Renderer_StackedLine.prototype.gap = function(p, c) {
-    return this.ctrl.gap(c[0] - p[0]);
-  };
+    renderer.x = function(_) {
+      xs = _;
+      return this;
+    };
 
-  Ugraph_Renderer_StackedLine.prototype.renderLine = function(ctx, entry) {
-    var data = entry.data, l = data.length;
-    var prev, p, x, y, y0;
+    renderer.y = function(_) {
+      ys = _;
+      return this;
+    };
 
-    var xs = this.ctrl.x,
-        ys = this.ctrl.y;
+    renderer.gap = function(_) {
+      gap = _;
+      return this;
+    };
 
-    if (!l)
-      return;
+    renderer.zeroBased = function(_) {
+      zeroBased = _;
+      return this;
+    };
 
-    p = data[0]; x = p[0]; y = p[1]; y0 = p[2];
+    return renderer;
+  }
 
-    ctx.beginPath();
-    ctx.moveTo(xs(x), ys(y0 + y));
+  function Ugraph_Renderer_StackedLine() {
+    var xs = d3.identity,
+        xy = d3.identity,
+        gap = d3.functor(false),
+        zeroBased = d3.functor(false);
 
-    var i = 0;
+    /**
+    * Perform initial calculation for a stacked line graph.
+    */
+    var calculator = Ugraph_Calculate_Stacked;
 
-    prev = p;
+    /**
+    * Renders fills, including gap calculations.
+    *
+    * Fills are areas below the line that fills all from y0 - y over the x-axis.
+    */
+    var renderFill = function(ctx, entry) {
+      var data = entry.data;
+      var p, x, y, y0;
 
-    while (++i < l) {
-      p = data[i]; x = p[0]; y = p[1]; y0 = p[2];
+      var index = 0, length = data.length;
 
-      if (this.gap(prev, p)) {
-        ctx.moveTo(xs(x), ys(y0 + y));
-      } else {
+      if (!length)
+        return;
+
+      while (index < length) {
+        var i = index;
+
+        p = data[i++]; x = p[0]; y = p[1]; y0 = p[2];
+
+        ctx.beginPath();
         ctx.lineTo(xs(x), ys(y0 + y));
+
+        /* previous datapoint for gap calculation */
+        var prev = p;
+
+        while (i < length) {
+          p = data[i]; x = p[0]; y = p[1]; y0 = p[2];
+
+          if (gap(prev, p))
+            break;
+
+          ++i;
+          ctx.lineTo(xs(x), ys(y0 + y));
+          prev = p;
+        }
+
+        var backTo = index;
+        index = i;
+        --i;
+
+        while (i >= backTo) {
+          p = data[i]; x = p[0]; y = p[1]; y0 = p[2];
+          ctx.lineTo(xs(x), ys(y0));
+          --i;
+        }
+
+        ctx.closePath();
+        ctx.fill();
       }
+    };
 
-      prev = p;
-    }
+    var renderer = function(ctx, data) {
+      var i = -1, l = data.length, d;
 
-    ctx.stroke();
-  };
+      while (++i < l) {
+        d = data[i];
 
-  Ugraph_Renderer_StackedLine.prototype.render = function(ctx, data) {
-    var i = -1, l = data.length, d;
+        var color = LineColors[i % LineColors.length];
 
-    while (++i < l) {
-      d = data[i];
+        // canvas settings
+        ctx.fillStyle = color.fill || color.stroke;
+        renderFill(ctx, d);
+      }
+    };
 
-      var color = LineColors[i % LineColors.length];
+    renderer.calculate = function(source, cb) {
+      return calculator(source, cb);
+    };
 
-      // canvas settings
-      ctx.fillStyle = color.fill || color.stroke;
+    renderer.x = function(_) {
+      xs = _;
+      return this;
+    };
 
-      this.renderFill(ctx, d);
-    }
-  };
+    renderer.y = function(_) {
+      ys = _;
+      return this;
+    };
 
-  UgraphCtrl.renderers = {
-    'line': Ugraph_Renderer_Line,
-    'stacked-line': Ugraph_Renderer_StackedLine
-  };
+    renderer.gap = function(_) {
+      gap = _;
+      return this;
+    };
 
-  UgraphCtrl.defaultRenderer = Ugraph_Renderer_Line;
+    renderer.zeroBased = function(_) {
+      zeroBased = _;
+      return this;
+    };
+
+    return renderer;
+  }
 
   m.directive('ugraph', function($parse, $window) {
     return {
