@@ -83,8 +83,7 @@
     /* active focus */
     this._focus = NoFocus;
 
-    this._xrange = [];
-    this._xentries = [];
+    this._highlightMap = {range: [], entries: []};
 
     /* render range */
     this._range = NoRange;
@@ -250,14 +249,22 @@
   UgraphCtrl.prototype.render = function() {
     this.reconcile();
 
-    this.context.clearRect(0, 0, this.width, this.height);
-    this.context.drawImage(this.graphElement, this.translation.x, this.translation.y);
+    var ctx = this.context;
 
-    if (this._highlight !== NoHighlight && !!this.highlight)
-      this.renderHighlight(this._highlight);
+    ctx.clearRect(0, 0, this.width, this.height);
+    ctx.drawImage(this.graphElement, this.translation.x, this.translation.y);
 
-    if (this._range !== NoRange)
-      this.renderDrag(this._range);
+    if (this._highlight !== NoHighlight && !!this.highlight) {
+      ctx.save();
+      this.renderHighlight(ctx, this._highlight);
+      ctx.restore();
+    }
+
+    if (this._range !== NoRange) {
+      ctx.save();
+      this.renderDrag(ctx, this._range);
+      ctx.restore();
+    }
 
     this._requested = false;
   };
@@ -313,6 +320,62 @@
     this.update();
   };
 
+  /**
+   * Function that updates the x-value cache
+   */
+  UgraphCtrl.prototype.eachPoint = function(xcache) {
+    var focus = this._focus;
+
+    return function(entry, x, y, y0) {
+      var axle = xcache[x] || {x: x, data: []};
+      axle.data.push({entry: entry, value: y, stackValue: y0});
+      xcache[x] = axle;
+
+      if (focus === NoFocus)
+        return true;
+
+      return focus.xstart <= x && focus.xend >= x;
+    };
+  };
+
+  UgraphCtrl.prototype.updateHighlightMap = function(xcache) {
+    var ascending = d3.ascending;
+
+    /* sort the generated cache by x-value */
+    var sorted = Object.keys(xcache).map(function(k) {
+      return xcache[k];
+    }).sort(function(a, b) {
+      return ascending(a.x, b.x);
+    });
+
+    var entries = [], range = [];
+
+    var i = -1, l = sorted.length;
+
+    while (++i < l) {
+      var e = sorted[i];
+      entries.push(e);
+      range.push(e.x);
+    }
+
+    this._highlightMap = {range: range, entries: entries};
+  };
+
+  UgraphCtrl.prototype.updateProjection = function(calculated) {
+    var xmin = calculated.xmin,
+        xmax = calculated.xmax,
+        ymin = calculated.ymin,
+        ymax = calculated.ymax;
+
+    if (this._focus !== NoFocus) {
+      xmin = this._focus.xstart;
+      xmax = this._focus.xend;
+    }
+
+    this.x.range([this.padding, this.width - this.padding]).domain([xmin, xmax]);
+    this.y.range([this.height - this.padding, this.padding]).domain([ymin, ymax]);
+  };
+
   UgraphCtrl.prototype.update = function(newSource) {
     if (!!newSource)
       this.source = newSource;
@@ -331,65 +394,24 @@
     if (!this.source)
       return;
 
-    var highlightCache = {};
-
     var r = this._renderer()
       .x(this.x)
       .y(this.y)
       .gap(this.__gap)
       .zeroBased(this.__zeroBased);
 
-    var calculated = r.calculate(
-      this.source,
-      (function(entry, x, y, y0) {
-        var axle = highlightCache[x] || {x: x, data: []};
-        axle.data.push({entry: entry, value: y, stackValue: y0});
-        highlightCache[x] = axle;
+    var xcache = {};
+    var calculated = r.calculate(this.source, this.eachPoint(xcache));
 
-        if (this._focus === NoFocus)
-          return true;
-
-        return this._focus.xstart <= x && this._focus.xend >= x;
-      }).bind(this));
-
-    var xmin = calculated.xmin,
-        xmax = calculated.xmax,
-        ymin = calculated.ymin,
-        ymax = calculated.ymax,
-        data = calculated.data;
-
-    if (this._focus !== NoFocus) {
-      xmin = this._focus.xstart;
-      xmax = this._focus.xend;
-    }
-
-    this.x.range([this.padding, this.width - this.padding]).domain([xmin, xmax]);
-    this.y.range([this.height - this.padding, this.padding]).domain([ymin, ymax]);
+    this.updateProjection(calculated);
+    this.updateHighlightMap(xcache);
 
     graph.clearRect(0, 0, this.width, this.height);
-    r(graph, data);
 
-    var sorted = Object.keys(highlightCache).map(function(k) {
-      return highlightCache[k];
-    }).sort(function(a, b) {
-      if (a.x < b.x)
-        return -1;
+    graph.save();
+    r(graph, calculated.data);
+    graph.restore();
 
-      if (a.x > b.x)
-        return 1;
-
-      return 0;
-    });
-
-    var entries = [], range = [];
-
-    sorted.map(function(e) {
-      entries.push(e);
-      range.push(e.x);
-    });
-
-    this._xentries = entries;
-    this._xrange = range;
     this.requestRender();
   };
 
@@ -479,10 +501,9 @@
       this.update();
   };
 
-  UgraphCtrl.prototype.renderDrag = function(drag) {
+  UgraphCtrl.prototype.renderDrag = function(ctx, drag) {
     var x1 = this.x(drag.x),
-        x2 = this.x(drag.xend),
-        ctx = this.context;
+        x2 = this.x(drag.xend);
 
     var xmn = Math.min(x1, x2),
         xmx = Math.max(x1, x2),
@@ -498,9 +519,8 @@
     ctx.fillRect(xmx, this.padding, this.width - xmx - this.padding, h);
   };
 
-  UgraphCtrl.prototype.renderHighlight = function(highlight) {
-    var x = this.x(highlight.x),
-        ctx = this.context;
+  UgraphCtrl.prototype.renderHighlight = function(ctx, highlight) {
+    var x = this.x(highlight.x);
 
     ctx.beginPath();
     ctx.moveTo(x, 0);
@@ -518,8 +538,8 @@
    * Finds the exact matching set of series to highlight.
    */
   UgraphCtrl.prototype.findExactHighlighted = function(xval) {
-    var range = this._xrange,
-        entries = this._xentries;
+    var range = this._highlightMap.range,
+        entries = this._highlightMap.entries;
 
     /* nothing to highlight */
     if (!range.length)
@@ -540,8 +560,8 @@
   };
 
   UgraphCtrl.prototype.findHighlighted = function(xval) {
-    var range = this._xrange,
-        entries = this._xentries;
+    var range = this._highlightMap.range,
+        entries = this._highlightMap.entries;
 
     /* nothing to highlight */
     if (!range.length)
