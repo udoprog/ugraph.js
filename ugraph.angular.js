@@ -1,115 +1,87 @@
 (function() {
   var m = angular.module('ugraph', []);
 
-  function UgraphCtrl($element, $scope) {
-    ugraph.graph.call(this, $element[0], $scope.$apply.bind($scope));
-  }
-
-  UgraphCtrl.prototype = ugraph.graph.prototype;
+  var graph = ugraph.graph();
 
   m.directive('ugraph', function($parse, $window) {
     return {
       restrict: 'A',
-      require: 'ugraph',
-      controller: UgraphCtrl,
-      link: function($scope, $element, $attr, ctrl) {
+      link: function($scope, $element, $attr) {
+        var g = graph($element[0], $scope.$apply.bind($scope));
+
         if (!!$attr.ugraphOnHighlight) {
           var onHighlightFn = $parse($attr.ugraphOnHighlight);
-          ctrl.onHighlight = onHighlightFn.bind(onHighlightFn, $scope);
+          g.onHighlight(onHighlightFn.bind(onHighlightFn, $scope));
         }
 
         if (!!$attr.ugraphOnHoverHighlight) {
           var onHoverHighlightFn = $parse($attr.ugraphOnHoverHighlight);
-          ctrl.onHoverHighlight = onHoverHighlightFn.bind(onHoverHighlightFn, $scope);
+          g.onHoverHighlight(onHoverHighlightFn.bind(onHoverHighlightFn, $scope));
         }
 
         if (!!$attr.ugraphOnRange) {
           var onRangeFn = $parse($attr.ugraphOnRange);
-          ctrl.onRange = onRangeFn.bind(onRangeFn, $scope);
+          g.onRange(onRangeFn.bind(onRangeFn, $scope));
         }
 
         if (!!$attr.ugraphOnDragRange) {
           var onDragRangeFn = $parse($attr.ugraphOnDragRange);
-          ctrl.onDragRange = onDragRangeFn.bind(onDragRangeFn, $scope);
+          g.onDragRange(onDragRangeFn.bind(onDragRangeFn, $scope));
         }
 
         if (!!$attr.ugraphOnFocus) {
           var onFocusFn = $parse($attr.ugraphOnFocus);
-          ctrl.onFocus = onFocusFn.bind(onFocusFn, $scope);
+          g.onFocus(onFocusFn.bind(onFocusFn, $scope));
         }
 
         // watches
 
         if (!!$attr.ugraphAutoXval) {
           /* watch for updates on x value to change highlighting */
-          $scope.$watch($attr.ugraphAutoXval, ctrl.updateAutoXval.bind(ctrl));
+          $scope.$watch($attr.ugraphAutoXval, g.updateAutoXval.bind(g));
         }
 
         if (!!$attr.ugraphAutoRange) {
           /* watch for updates on x value to change highlighting */
-          $scope.$watch($attr.ugraphAutoRange, ctrl.updateAutoRange.bind(ctrl));
+          $scope.$watch($attr.ugraphAutoRange, g.updateAutoRange.bind(g));
         }
 
         if (!!$attr.ugraphAutoFocus) {
           /* watch for updates on x value to change highlighting */
-          $scope.$watch($attr.ugraphAutoFocus, ctrl.updateFocus.bind(ctrl));
+          $scope.$watch($attr.ugraphAutoFocus, g.updateFocus.bind(g));
         }
 
         if (!!$attr.ugraphRenderer) {
-          $scope.$watch($attr.ugraphRenderer, ctrl.updateRenderer.bind(ctrl));
+          $scope.$watch($attr.ugraphRenderer, g.updateRenderer.bind(g));
         }
 
         if (!!$attr.ugraphHighlight) {
-          $scope.$watch($attr.ugraphHighlight, function(highlight) {
-            ctrl.highlight = !!highlight;
-          });
+          $scope.$watch($attr.ugraphHighlight, g.updateHighlight.bind(g));
         }
 
         if (!!$attr.ugraphPadding) {
-          $scope.$watch($attr.ugraphPadding, function(_) {
-            _ = !!_;
-
-            if (ctrl.padding === _)
-              return;
-
-            ctrl.padding = _;
-            ctrl.update();
-          });
+          $scope.$watch($attr.ugraphPadding, g.updatePadding.bind(g));
         }
 
         if (!!$attr.ugraphCadence) {
-          $scope.$watch($attr.ugraphCadence, function(_) {
-            if (ctrl.cadence === _)
-              return;
-
-            ctrl.cadence = _;
-            ctrl.update();
-          });
+          $scope.$watch($attr.ugraphCadence, g.updateCadence.bind(g));
         }
 
         if (!!$attr.ugraphZeroBased) {
-          $scope.$watch($attr.ugraphZeroBased, function(_) {
-            _ = !!_;
-
-            if (ctrl.zeroBased === _)
-              return;
-
-            ctrl.zeroBased = _;
-            ctrl.update();
-          });
+          $scope.$watch($attr.ugraphZeroBased, g.updateZeroBased.bind(g));
         }
 
         if (!!$attr.ugraph) {
-          $scope.$watch($attr.ugraph, ctrl.update.bind(ctrl));
+          $scope.$watch($attr.ugraph, g.update.bind(g));
         }
 
         var $w = angular.element($window);
 
-        var mousedown = ctrl.mousedown.bind(ctrl);
-        var mouseup = ctrl.mouseup.bind(ctrl);
-        var mousemove = ctrl.mousemove.bind(ctrl);
-        var mouseleave = ctrl.mouseleave.bind(ctrl);
-        var resize = ctrl.resize.bind(ctrl);
+        var mousedown = g.mousedown.bind(g);
+        var mouseup = g.mouseup.bind(g);
+        var mousemove = g.mousemove.bind(g);
+        var mouseleave = g.mouseleave.bind(g);
+        var resize = g.resize.bind(g);
 
         $element.bind('mousedown', mousedown);
         $element.bind('mouseup', mouseup);
@@ -126,7 +98,7 @@
         });
 
         /* detect initial sizing */
-        ctrl.resize();
+        g.resize();
       }
     };
   });
