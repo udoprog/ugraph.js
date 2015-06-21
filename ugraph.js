@@ -3,9 +3,9 @@
 
   /* object that is being sent out on ugraph-hover-highlighted if no highlight
    * is active */
-  var NoHighlight = {x: null, data: []};
-  var NoRange = {x: null, y: null, xend: null, yend: null};
-  var NoFocus = {xstart: null, xend: null};
+  var ugraph_NoHighlight = ugraph.NoHighlight = {x: null, data: []};
+  var ugraph_NoRange = ugraph.NoRange = {x: null, y: null, xend: null, yend: null};
+  var ugraph_NoFocus = ugraph.NoFocus = {xstart: null, xend: null};
 
   var ClickThreshold = 5;
 
@@ -83,17 +83,17 @@
     this._requested = false;
 
     /* active focus */
-    this._focus = NoFocus;
+    this._focus = ugraph_NoFocus;
 
     this._highlightMap = {range: [], entries: []};
 
     /* render range */
-    this._range = NoRange;
+    this._range = ugraph_NoRange;
 
     /* drag/drop */
-    this._localrange = NoRange;
+    this._localrange = ugraph_NoRange;
     this._localdrag = false;
-    this._autorange = NoRange;
+    this._autorange = ugraph_NoRange;
 
     /* local hover position */
     this._localxval = null;
@@ -104,7 +104,7 @@
     this._previousxval = null;
 
     /* local highlight */
-    this._highlight = NoHighlight;
+    this._highlight = ugraph_NoHighlight;
 
     /* self-bound render function to optimize requestRender */
     this.__render = this.render.bind(this);
@@ -163,13 +163,13 @@
   ugraph_graph.prototype.reconcileLocalHighlight = function() {
     /* just left hovered area */
     if (this._localxval === null) {
-      if (this._highlight === NoHighlight) {
+      if (this._highlight === ugraph_NoHighlight) {
         this._localhover = false;
         return;
       }
 
-      this.$onHighlightedAll(NoHighlight);
-      this._highlight = NoHighlight;
+      this.$onHighlightedAll(ugraph_NoHighlight);
+      this._highlight = ugraph_NoHighlight;
       this._localhover = false;
       return;
     }
@@ -189,12 +189,12 @@
    */
   ugraph_graph.prototype.reconcileAutoHighlight = function() {
     if (this._autoxval === null) {
-      if (this._highlight == NoHighlight)
+      if (this._highlight == ugraph_NoHighlight)
         return;
 
-      this.$onHighlight(NoHighlight);
+      this.$onHighlight(ugraph_NoHighlight);
+      this._highlight = ugraph_NoHighlight;
       this._previousxval = null;
-      this._highlight = NoHighlight;
       return;
     }
 
@@ -215,9 +215,9 @@
   };
 
   ugraph_graph.prototype.reconcileAutoRange = function() {
-    if (this._autorange === NoRange) {
-      this._range = NoRange;
-      this.$onRange(NoRange);
+    if (this._autorange === ugraph_NoRange) {
+      this._range = ugraph_NoRange;
+      this.$onRange(ugraph_NoRange);
       return;
     }
 
@@ -229,10 +229,10 @@
   };
 
   ugraph_graph.prototype.reconcileLocalRange = function() {
-    if (this._localrange === NoRange) {
+    if (this._localrange === ugraph_NoRange) {
       this._localdrag = false;
-      this._range = NoRange;
-      this.$onRangeAll(NoRange);
+      this._range = ugraph_NoRange;
+      this.$onRangeAll(ugraph_NoRange);
       return;
     }
 
@@ -256,13 +256,13 @@
     ctx.clearRect(0, 0, this.width, this.height);
     ctx.drawImage(this.graphElement, this.translation.x, this.translation.y);
 
-    if (this._highlight !== NoHighlight && !!this.highlight) {
+    if (this._highlight !== ugraph_NoHighlight && !!this.highlight) {
       ctx.save();
       this.renderHighlight(ctx, this._highlight);
       ctx.restore();
     }
 
-    if (this._range !== NoRange) {
+    if (this._range !== ugraph_NoRange) {
       ctx.save();
       this.renderDrag(ctx, this._range);
       ctx.restore();
@@ -289,7 +289,7 @@
   };
 
   ugraph_graph.prototype.updateAutoRange = function(_) {
-    _ = _ || NoRange;
+    _ = _ || ugraph_NoRange;
 
     if (this._autorange === _)
       return;
@@ -299,7 +299,7 @@
   };
 
   ugraph_graph.prototype.updateFocus = function(_) {
-    _ = _ || NoFocus;
+    _ = _ || ugraph_NoFocus;
 
     if (this._focus === _)
       return;
@@ -333,7 +333,7 @@
       axle.data.push({entry: entry, value: y, stackValue: y0});
       xcache[x] = axle;
 
-      if (focus === NoFocus)
+      if (focus === ugraph_NoFocus)
         return true;
 
       return focus.xstart <= x && focus.xend >= x;
@@ -369,7 +369,7 @@
         ymin = calculated.ymin,
         ymax = calculated.ymax;
 
-    if (this._focus !== NoFocus) {
+    if (this._focus !== ugraph_NoFocus) {
       xmin = this._focus.xstart;
       xmax = this._focus.xend;
     }
@@ -424,24 +424,24 @@
   };
 
   ugraph_graph.prototype.mouseup = function(e) {
-    if (this._localrange === NoRange)
+    if (this._localrange === ugraph_NoRange)
       return;
 
     this.stopDrag(this.x.invert(e.offsetX), this.y.invert(e.offsetY));
   };
 
   ugraph_graph.prototype.stopDrag = function(x, y) {
-    if (this._localrange === NoRange)
+    if (this._localrange === ugraph_NoRange)
       return;
 
     var xmx = Math.max(this._localrange.x, x),
         xmn = Math.min(this._localrange.x, x),
         diff = this.x(xmx) - this.x(xmn);
 
-    this._localrange = NoRange;
+    this._localrange = ugraph_NoRange;
 
     if (diff < ClickThreshold) {
-      this._focus = NoFocus;
+      this._focus = ugraph_NoFocus;
     } else {
       this._focus = {xstart: xmn, xend: xmx};
     }
@@ -451,7 +451,7 @@
   };
 
   ugraph_graph.prototype.mousemove = function(e) {
-    if (this._localrange !== NoRange) {
+    if (this._localrange !== ugraph_NoRange) {
       var x = this.x.invert(e.offsetX),
           y = this.y.invert(e.offsetY),
           l = this._localrange;
@@ -475,7 +475,7 @@
   };
 
   ugraph_graph.prototype.mouseleave = function(e) {
-    if (this._localrange !== NoRange)
+    if (this._localrange !== ugraph_NoRange)
       this.stopDrag(this.x.invert(e.offsetX), this.y.invert(e.offsetY));
 
     if (this._localxval !== null) {
@@ -545,18 +545,18 @@
 
     /* nothing to highlight */
     if (!range.length)
-      return NoHighlight;
+      return ugraph_NoHighlight;
 
     /* the closest (right hand side) index of the highlighted value */
     var index = d3.bisect(range, xval);
 
     if (index === 0)
-      return NoHighlight;
+      return ugraph_NoHighlight;
 
     var candidate = entries[index - 1];
 
     if (candidate.x !== xval)
-      return NoHighlight;
+      return ugraph_NoHighlight;
 
     return candidate;
   };
@@ -567,7 +567,7 @@
 
     /* nothing to highlight */
     if (!range.length)
-      return NoHighlight;
+      return ugraph_NoHighlight;
 
     /* the closest (right hand side) index of the highlighted value */
     var index = d3.bisect(range, xval);
