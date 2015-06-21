@@ -108,7 +108,7 @@
     </label>
   </div>
 
-  <div>highlight: {x: {{state.highlight.x}}}</div>
+  <div>highlight: {x: {{state.highlight.x | json}}, data: {{state.highlight.data.length}}}</div>
   <div>range: {{state.range}}</div>
   <div>focus: {{state.focus}}</div>
 
