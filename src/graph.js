@@ -38,6 +38,7 @@ function ugraph_graph() {
     var context = element.getContext('2d');
     var graphElement = document.createElement('canvas');
 
+    /* active data source */
     var source = null;
 
     /* options */
@@ -47,54 +48,61 @@ function ugraph_graph() {
     var padding = 10;
     var cadence = null;
 
-    /* all entries in this time series, slice over the x-axis */
-    var _entries = [];
-    /* all x-axis values in this time series, used to lookup highlighting */
-    var range = [];
-
-    var xscale = d3.scale.linear();
-    var yscale = d3.scale.linear();
+    var xScale = d3.scale.linear();
+    var yScale = d3.scale.linear();
 
     var height = element.offsetHeight;
     var width = element.offsetWidth;
 
     var translation = {x: 0, y: 0};
 
-    var __zeroBased = (function() { return zeroBased; });
+    /* getter for the current zero-based state */
+    var zeroBasedFn = (function() { return zeroBased; });
 
-    var _renderer = defaultRenderer;
+    var renderer = defaultRenderer;
 
     /* if there is an active animation frame request */
-    var _requested = false;
+    var requested = false;
 
-    /* active focus */
-    var _focus = ugraph_NoFocus;
+    /* current focus */
+    var currentFocus = ugraph_NoFocus;
 
-    var _highlightMap = {range: [], entries: []};
+    /* mapping to support x-value bisecting to quickly find highlighted values */
+    var highlightMap = {range: [], entries: []};
 
     /* render range */
-    var _range = ugraph_NoRange;
+    var currentRange = ugraph_NoRange;
 
     /* drag/drop */
-    var _localrange = ugraph_NoRange;
-    var _localdrag = false;
-    var _autorange = ugraph_NoRange;
+    var localRange = ugraph_NoRange;
+
+    /* if the user is currently dragging in the graph in a way that effects
+     * the highlighted range */
+    var localDragRange = false;
+
+    /* range as seen through updateAutoRange */
+    var autoRange = ugraph_NoRange;
 
     /* local hover position */
-    var _localxval = null;
-    var _localhover = false;
+    var localHighlightX = null;
+    var localHover = false;
 
     /* current position being updated through hovering */
-    var _autoxval = null;
-    var _previousxval = null;
+    var autoHighlightX = null;
+    var previousHighlightX = null;
 
-    /* local highlight */
-    var _highlight = ugraph_NoHighlight;
+    /* the current highlight */
+    var currentHighlight = ugraph_NoHighlight;
 
+    /* callback when highlight has changed */
     var onHighlight = ugraph_noop;
+    /* callback when highlight has changed because of local hovering */
     var onHoverHighlight = ugraph_noop;
+    /* callback when range has changed */
     var onRange = ugraph_noop;
+    /* callback when range has changed because of local dragging */
     var onDragRange = ugraph_noop;
+    /* callback when focus has been changed */
     var onFocus = ugraph_noop;
 
     /**
@@ -102,25 +110,25 @@ function ugraph_graph() {
     */
     function reconcileLocalHighlight() {
       /* just left hovered area */
-      if (_localxval === null) {
-        if (_highlight === ugraph_NoHighlight) {
-          _localhover = false;
+      if (localHighlightX === null) {
+        if (currentHighlight === ugraph_NoHighlight) {
+          localHover = false;
           return;
         }
 
         $onHighlightAll(ugraph_NoHighlight);
-        _highlight = ugraph_NoHighlight;
-        _localhover = false;
+        currentHighlight = ugraph_NoHighlight;
+        localHover = false;
         return;
       }
 
-      var highlight = findHighlight(_localxval);
+      var highlight = findHighlight(localHighlightX);
 
-      if (_highlight === highlight)
+      if (currentHighlight === highlight)
         return;
 
       $onHighlightAll(highlight);
-      _highlight = highlight;
+      currentHighlight = highlight;
     }
 
     /**
@@ -128,71 +136,78 @@ function ugraph_graph() {
     * through ugraph-xval
     */
     function reconcileAutoHighlight() {
-      if (_autoxval === null) {
-        if (_highlight == ugraph_NoHighlight)
+      if (autoHighlightX === null) {
+        if (currentHighlight == ugraph_NoHighlight)
           return;
 
         $onHighlight(ugraph_NoHighlight);
-        _highlight = ugraph_NoHighlight;
-        _previousxval = null;
+        currentHighlight = ugraph_NoHighlight;
+        previousHighlightX = null;
         return;
       }
 
       /* external value has not changed */
-      if (_autoxval === _previousxval)
+      if (autoHighlightX === previousHighlightX)
         return;
 
-      _previousxval = _autoxval;
+      var highlight = findExactHighlight(autoHighlightX);
 
-      var highlight = findExactHighlight(_autoxval);
+      previousHighlightX = autoHighlightX;
 
       /* nothing has changed */
-      if (_highlight === highlight)
+      if (currentHighlight === highlight)
         return;
 
       $onHighlight(highlight);
-      _highlight = highlight;
+      currentHighlight = highlight;
     }
 
     function reconcileAutoRange() {
-      if (_autorange === ugraph_NoRange) {
-        _range = ugraph_NoRange;
+      if (autoRange === ugraph_NoRange) {
+        currentRange = ugraph_NoRange;
         $onRange(ugraph_NoRange);
         return;
       }
 
-      if (_range === _autorange)
+      if (currentRange === autoRange)
         return;
 
-      $onRange(_autorange);
-      _range = _autorange;
+      $onRange(autoRange);
+      currentRange = autoRange;
     }
 
     function reconcileLocalRange() {
-      if (_localrange === ugraph_NoRange) {
-        _localdrag = false;
-        _range = ugraph_NoRange;
+      if (localRange === ugraph_NoRange) {
+        localDragRange = false;
+        currentRange = ugraph_NoRange;
         $onRangeAll(ugraph_NoRange);
         return;
       }
 
-      if (_range === _localrange)
+      if (currentRange === localRange)
         return;
 
-      $onRangeAll(_localrange);
-      _range = _localrange;
+      $onRangeAll(localRange);
+      currentRange = localRange;
     }
 
+    /**
+     * Reconcile state from local, and automatic sources.
+     *
+     * This is done here, instead of in various event-triggered method to make
+     * use of the fact that requestAnimationFrame is rate-limited.
+     */
     function reconcile() {
-      (_localhover ? reconcileLocalHighlight : reconcileAutoHighlight)();
-      (_localdrag ? reconcileLocalRange : reconcileAutoRange)();
+      (localHover ? reconcileLocalHighlight : reconcileAutoHighlight)();
+      (localDragRange ? reconcileLocalRange : reconcileAutoRange)();
     }
 
     /**
     * Function that updates the x-value cache
     */
     function eachPoint(xcache) {
-      var focus = _focus;
+      // store local copy to avoid higher scope lookups and abrupt changes
+      var focus = currentFocus;
 
       return function(entry, x, y, y0) {
         var axle = xcache[x] || {x: x, data: []};
@@ -226,7 +241,7 @@ function ugraph_graph() {
         range.push(e.x);
       }
 
-      _highlightMap = {range: range, entries: entries};
+      highlightMap = {range: range, entries: entries};
     }
 
     function updateProjection(calculated) {
@@ -235,38 +250,38 @@ function ugraph_graph() {
           ymin = calculated.ymin,
           ymax = calculated.ymax;
 
-      if (_focus !== ugraph_NoFocus) {
-        xmin = _focus.xstart;
-        xmax = _focus.xend;
+      if (currentFocus !== ugraph_NoFocus) {
+        xmin = currentFocus.xstart;
+        xmax = currentFocus.xend;
       }
 
-      xscale.range([padding, width - padding]).domain([xmin, xmax]);
-      yscale.range([height - padding, padding]).domain([ymin, ymax]);
+      xScale.range([padding, width - padding]).domain([xmin, xmax]);
+      yScale.range([height - padding, padding]).domain([ymin, ymax]);
     }
 
     function stopDrag(x, y) {
-      if (_localrange === ugraph_NoRange)
+      if (localRange === ugraph_NoRange)
         return;
 
-      var xmx = Math.max(_localrange.x, x),
-          xmn = Math.min(_localrange.x, x),
-          diff = xscale(xmx) - xscale(xmn);
+      var xmx = Math.max(localRange.x, x),
+          xmn = Math.min(localRange.x, x),
+          diff = xScale(xmx) - xScale(xmn);
 
-      _localrange = ugraph_NoRange;
+      localRange = ugraph_NoRange;
 
       if (diff < clickThreshold) {
-        _focus = ugraph_NoFocus;
+        currentFocus = ugraph_NoFocus;
       } else {
-        _focus = {xstart: xmn, xend: xmx};
+        currentFocus = {xstart: xmn, xend: xmx};
       }
 
-      $onFocus(_focus);
+      $onFocus(currentFocus);
       g.update();
     }
 
     function renderDrag(ctx, drag) {
-      var x1 = xscale(drag.x),
-          x2 = xscale(drag.xend);
+      var x1 = xScale(drag.x),
+          x2 = xScale(drag.xend);
 
       var xmn = Math.min(x1, x2),
           xmx = Math.max(x1, x2),
@@ -283,7 +298,7 @@ function ugraph_graph() {
     }
 
     function renderHighlight(ctx, highlight) {
-      var x = xscale(highlight.x);
+      var x = xScale(highlight.x);
 
       ctx.beginPath();
       ctx.moveTo(x, 0);
@@ -301,8 +316,8 @@ function ugraph_graph() {
     * Finds the exact matching set of series to highlight.
     */
     function findExactHighlight(xval) {
-      var range = _highlightMap.range,
-          entries = _highlightMap.entries;
+      var range = highlightMap.range,
+          entries = highlightMap.entries;
 
       /* nothing to highlight */
       if (!range.length)
@@ -323,8 +338,8 @@ function ugraph_graph() {
     }
 
     function findHighlight(xval) {
-      var range = _highlightMap.range,
-          entries = _highlightMap.entries;
+      var range = highlightMap.range,
+          entries = highlightMap.entries;
 
       /* nothing to highlight */
       if (!range.length)
@@ -337,8 +352,6 @@ function ugraph_graph() {
         return entries[entries.length - 1];
 
       var smallest = entries[index];
-
-      var c = [];
 
       if (index > 0) {
         var prev = entries[index - 1];
@@ -405,11 +418,11 @@ function ugraph_graph() {
       if (!source)
         return;
 
-      var r = _renderer()
-        .x(xscale)
-        .y(yscale)
+      var r = renderer()
+        .x(xScale)
+        .y(yScale)
         .gap(gap)
-        .zeroBased(__zeroBased)
+        .zeroBased(zeroBasedFn)
         .lineCap(lineCap)
         .lineWidth(lineWidth)
         .lineColors(lineColors);
@@ -435,69 +448,69 @@ function ugraph_graph() {
       context.clearRect(0, 0, width, height);
       context.drawImage(graphElement, translation.x, translation.y);
 
-      if (_highlight !== ugraph_NoHighlight && !!highlight) {
+      if (currentHighlight !== ugraph_NoHighlight && !!highlight) {
         context.save();
-        renderHighlight(context, _highlight);
+        renderHighlight(context, currentHighlight);
         context.restore();
       }
 
-      if (_range !== ugraph_NoRange) {
+      if (currentRange !== ugraph_NoRange) {
         context.save();
-        renderDrag(context, _range);
+        renderDrag(context, currentRange);
         context.restore();
       }
 
-      _requested = false;
+      requested = false;
     };
 
     /* makes sure that only one render (at most) is requested per frame */
     g.requestRender = function() {
-      if (!!_requested)
+      if (!!requested)
         return;
 
       requestAnimationFrame(this.render.bind(this));
-      _requested = true;
+      requested = true;
     };
 
     g.updateAutoXval = function(_) {
-      if (_autoxval === _)
+      if (autoHighlightX === _)
         return;
 
-      _autoxval = _;
+      autoHighlightX = _;
       this.requestRender();
     };
 
     g.updateAutoRange = function(_) {
       _ = _ || ugraph_NoRange;
 
-      if (_autorange === _)
+      if (autoRange === _)
         return;
 
-      _autorange = _;
+      autoRange = _;
       this.requestRender();
     };
 
     g.updateFocus = function(_) {
       _ = _ || ugraph_NoFocus;
 
-      if (_focus === _)
+      if (currentFocus === _)
         return;
 
-      _focus = _;
-      $$onFocus(_focus);
+      currentFocus = _;
+      $$onFocus(currentFocus);
       g.update();
     };
 
     g.updateRenderer = function(_) {
-      var renderer = renderers[_];
+      var _renderer = renderers[_];
 
-      if (!renderer)
+      if (!_renderer)
         throw new Error('no such renderer: ' + String(_));
 
-      if (_renderer === renderer)
+      if (renderer === _renderer)
         return;
 
-      _renderer = renderer;
+      renderer = _renderer;
       g.update();
     };
 
@@ -534,48 +547,48 @@ function ugraph_graph() {
     };
 
     g.mousedown = function(e) {
-      var x = xscale.invert(e.offsetX), y = yscale.invert(e.offsetY);
-      _localrange = {x: x, y: y, xend: x, yend: y};
-      _localdrag = true;
+      var x = xScale.invert(e.offsetX), y = yScale.invert(e.offsetY);
+      localRange = {x: x, y: y, xend: x, yend: y};
+      localDragRange = true;
     };
 
     g.mouseup = function(e) {
-      if (_localrange === ugraph_NoRange)
+      if (localRange === ugraph_NoRange)
         return;
 
-      stopDrag(xscale.invert(e.offsetX), yscale.invert(e.offsetY));
+      stopDrag(xScale.invert(e.offsetX), yScale.invert(e.offsetY));
     };
 
     g.mousemove = function(e) {
-      if (_localrange !== ugraph_NoRange) {
-        var x = xscale.invert(e.offsetX),
-            y = yscale.invert(e.offsetY),
-            l = _localrange;
+      if (localRange !== ugraph_NoRange) {
+        var x = xScale.invert(e.offsetX),
+            y = yScale.invert(e.offsetY),
+            l = localRange;
 
         if (l.xend !== x || l.yend !== y) {
-          _localrange = {x: l.x, y: l.y, xend: x, yend: y};
-          $onRange(_localrange);
+          localRange = {x: l.x, y: l.y, xend: x, yend: y};
+          $onRange(localRange);
         }
       }
 
       if (highlight) {
-        var newX = xscale.invert(e.offsetX);
+        var newX = xScale.invert(e.offsetX);
 
-        _localhover = true;
+        localHover = true;
 
-        if (_localxval !== newX) {
-          _localxval = newX;
+        if (localHighlightX !== newX) {
+          localHighlightX = newX;
           this.requestRender();
         }
       }
     };
 
     g.mouseleave = function(e) {
-      if (_localrange !== ugraph_NoRange)
-        stopDrag(xscale.invert(e.offsetX), yscale.invert(e.offsetY));
+      if (localRange !== ugraph_NoRange)
+        stopDrag(xScale.invert(e.offsetX), yScale.invert(e.offsetY));
 
-      if (_localxval !== null) {
-        _localxval = null;
+      if (localHighlightX !== null) {
+        localHighlightX = null;
         this.requestRender();
       }
     };
