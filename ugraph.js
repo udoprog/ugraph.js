@@ -109,43 +109,43 @@
     /* self-bound render function to optimize requestRender */
     this.__render = this.render.bind(this);
 
-    this.aOnHighlighted = angular.noop;
-    this.aOnHoverHighlighted = angular.noop;
-    this.aOnRange = angular.noop;
+    this.onHighlight = angular.noop;
+    this.onHoverHighlight = angular.noop;
+    this.onRange = angular.noop;
     this.aOnDragRange = angular.noop;
-    this.aOnFocus = angular.noop;
+    this.onFocus = angular.noop;
 
     this.$$onFocus = function(focus) {
-      this.aOnFocus({$focus: focus});
+      this.onFocus({$focus: focus});
     };
 
     this.$onFocus = function(focus) {
-      apply(this.aOnFocus.bind(this, {$focus: focus}));
+      apply(this.onFocus.bind(this, {$focus: focus}));
     };
 
     this.$onRange = function(range) {
-      apply(this.aOnRange.bind(this, {$range: range}));
+      apply(this.onRange.bind(this, {$range: range}));
     };
 
     this.$onRangeAll = function(range) {
       var update = {$range: range};
 
       apply(function() {
-        this.aOnRange(update);
-        this.aOnDragRange(update);
+        this.onRange(update);
+        this.onDragRange(update);
       }.bind(this));
     };
 
     this.$onHighlight = function(highlight) {
-      apply(this.aOnHighlighted.bind(this, {$highlight: highlight}));
+      apply(this.onHighlight.bind(this, {$highlight: highlight}));
     };
 
-    this.$onHighlightedAll = function(highlight) {
+    this.$onHighlightAll = function(highlight) {
       var update = {$highlight: highlight};
 
       apply(function() {
-        this.aOnHighlighted(update);
-        this.aOnHoverHighlighted(update);
+        this.onHighlight(update);
+        this.onHoverHighlight(update);
       }.bind(this));
     };
   }
@@ -168,18 +168,18 @@
         return;
       }
 
-      this.$onHighlightedAll(ugraph_NoHighlight);
+      this.$onHighlightAll(ugraph_NoHighlight);
       this._highlight = ugraph_NoHighlight;
       this._localhover = false;
       return;
     }
 
-    var highlight = this.findHighlighted(this._localxval);
+    var highlight = this.findHighlight(this._localxval);
 
     if (this._highlight === highlight)
       return;
 
-    this.$onHighlightedAll(highlight);
+    this.$onHighlightAll(highlight);
     this._highlight = highlight;
   };
 
@@ -204,7 +204,7 @@
 
     this._previousxval = this._autoxval;
 
-    var highlight = this.findExactHighlighted(this._autoxval);
+    var highlight = this.findExactHighlight(this._autoxval);
 
     /* nothing has changed */
     if (this._highlight === highlight)
@@ -539,7 +539,7 @@
   /**
    * Finds the exact matching set of series to highlight.
    */
-  ugraph_graph.prototype.findExactHighlighted = function(xval) {
+  ugraph_graph.prototype.findExactHighlight = function(xval) {
     var range = this._highlightMap.range,
         entries = this._highlightMap.entries;
 
@@ -561,7 +561,7 @@
     return candidate;
   };
 
-  ugraph_graph.prototype.findHighlighted = function(xval) {
+  ugraph_graph.prototype.findHighlight = function(xval) {
     var range = this._highlightMap.range,
         entries = this._highlightMap.entries;
 

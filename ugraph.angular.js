@@ -13,29 +13,29 @@
       require: 'ugraph',
       controller: UgraphCtrl,
       link: function($scope, $element, $attr, ctrl) {
-        if (!!$attr.ugraphOnHighlighted) {
-          var onHighlightedFn = $parse($attr.ugraphOnHighlighted);
-          ctrl.aOnHighlighted = onHighlightedFn.bind(onHighlightedFn, $scope);
+        if (!!$attr.ugraphOnHighlight) {
+          var onHighlightFn = $parse($attr.ugraphOnHighlight);
+          ctrl.onHighlight = onHighlightFn.bind(onHighlightFn, $scope);
         }
 
-        if (!!$attr.ugraphOnHoverHighlighted) {
-          var onHoverHighlightedFn = $parse($attr.ugraphOnHoverHighlighted);
-          ctrl.aOnHoverHighlighted = onHoverHighlightedFn.bind(onHoverHighlightedFn, $scope);
+        if (!!$attr.ugraphOnHoverHighlight) {
+          var onHoverHighlightFn = $parse($attr.ugraphOnHoverHighlight);
+          ctrl.onHoverHighlight = onHoverHighlightFn.bind(onHoverHighlightFn, $scope);
         }
 
         if (!!$attr.ugraphOnRange) {
           var onRangeFn = $parse($attr.ugraphOnRange);
-          ctrl.aOnRange = onRangeFn.bind(onRangeFn, $scope);
+          ctrl.onRange = onRangeFn.bind(onRangeFn, $scope);
         }
 
         if (!!$attr.ugraphOnDragRange) {
           var onDragRangeFn = $parse($attr.ugraphOnDragRange);
-          ctrl.aOnDragRange = onDragRangeFn.bind(onDragRangeFn, $scope);
+          ctrl.onDragRange = onDragRangeFn.bind(onDragRangeFn, $scope);
         }
 
         if (!!$attr.ugraphOnFocus) {
           var onFocusFn = $parse($attr.ugraphOnFocus);
-          ctrl.aOnFocus = onFocusFn.bind(onFocusFn, $scope);
+          ctrl.onFocus = onFocusFn.bind(onFocusFn, $scope);
         }
 
         // watches
