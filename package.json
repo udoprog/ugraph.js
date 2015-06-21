@@ -1,0 +1,22 @@
+{
+  "name": "ugraph",
+  "version": "0.0.1",
+  "description": "A minimal graph rendering library",
+  "keywords": [
+    "canvas"
+  ],
+  "homepage": "https://github.com/udoprog",
+  "author": {
+    "name": "John-John Tedro",
+    "url": "https://github.com/udoprog"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/udoprog/ugraph.js"
+  },
+  "devDependencies": {
+    "smash": "0.0",
+    "uglify-js": "2.4.16"
+  },
+  "license": "BSD-3-Clause"
+}

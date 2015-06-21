@@ -9,22 +9,16 @@
 
   <script src="../bower_components/d3/d3.js"  type="text/javascript"></script>
   <script src="../bower_components/angular/angular.js"  type="text/javascript"></script>
-  <script src="../ugraph.js"  type="text/javascript"></script>
+  <script src="../ugraph.min.js"  type="text/javascript"></script>
   <script src="../ugraph.angular.js"  type="text/javascript"></script>
   <script type="text/javascript">
 (function() {
   var m = angular.module('ugraph-example', ['ugraph']);
 
   m.controller('UgraphExampleCtrl', function($scope){
-    var sources = [];
-
     $scope.cadence = 500;
 
-    for (var i = 0; i < 2; i++) {
-      sources.push(generate($scope.cadence));
-    }
-
-    $scope.sources = sources;
+    $scope.sources = [];
 
     $scope.options = {
       renderer: 'stacked-line',
@@ -38,6 +32,18 @@
       range: ugraph.NoRange,
       focus: ugraph.NoFocus
     };
+
+    $scope.refresh = function() {
+      var sources = [];
+
+      for (var i = 0; i < 2; i++) {
+        sources.push(generate($scope.cadence));
+      }
+
+      $scope.sources = sources;
+    };
+
+    $scope.refresh();
   });
 
   function generate() {
@@ -79,6 +85,11 @@
         <option value="line">Line</option>
         <option value="stacked-line">Stacked Line</option>
       </select>
+    </label>
+
+    <label>
+      <span>Refresh:</span>
+      <button ng-click="refresh()">refresh</button>
     </label>
 
     <label>
