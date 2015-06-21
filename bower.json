@@ -1,9 +1,15 @@
 {
   "name": "ugraph",
   "version": "0.0.1",
-  "main": "ugraph.js",
+  "main": [
+    "ugraph.js",
+    "ugraph.angular.js"
+  ],
   "exclude": [
-    "example/*"
+    "/example/",
+    "/src/",
+    "/bin/",
+    "/Makefile"
   ],
   "dependencies": {
     "angular": "1.3.15",

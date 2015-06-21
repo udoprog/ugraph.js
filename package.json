@@ -16,6 +16,7 @@
   },
   "devDependencies": {
     "smash": "0.0",
+    "bower": "1.4.1",
     "uglify-js": "2.4.16"
   },
   "license": "BSD-3-Clause"
