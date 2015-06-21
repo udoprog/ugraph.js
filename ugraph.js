@@ -1,5 +1,5 @@
 (function() {
-  var m = angular.module('ugraph', []);
+  var ugraph = {};
 
   /* object that is being sent out on ugraph-hover-highlighted if no highlight
    * is active */
@@ -39,14 +39,16 @@
 
   var DefaultRenderer = Ugraph_Renderer_Line;
 
-  function UgraphCtrl($scope, $element) {
-    this.$scope = $scope;
+  ugraph.graph = ugraph_graph;
 
-    if (!$element.length)
+  function ugraph_graph(element, apply) {
+    if (!element)
       throw new Error('no element available');
 
-    this.element = $element[0];
-    this.context = $element[0].getContext('2d');
+    apply = apply || function(f) { f.apply(this, arguments); };
+
+    this.element = element;
+    this.context = element.getContext('2d');
 
     this.graphElement = document.createElement('canvas');
 
@@ -118,37 +120,37 @@
     };
 
     this.$onFocus = function(focus) {
-      $scope.$apply(this.aOnFocus.bind(this, {$focus: focus}));
+      apply(this.aOnFocus.bind(this, {$focus: focus}));
     };
 
     this.$onRange = function(range) {
-      $scope.$apply(this.aOnRange.bind(this, {$range: range}));
+      apply(this.aOnRange.bind(this, {$range: range}));
     };
 
     this.$onRangeAll = function(range) {
       var update = {$range: range};
 
-      $scope.$apply(function() {
+      apply(function() {
         this.aOnRange(update);
         this.aOnDragRange(update);
       }.bind(this));
     };
 
     this.$onHighlight = function(highlight) {
-      $scope.$apply(this.aOnHighlighted.bind(this, {$highlight: highlight}));
+      apply(this.aOnHighlighted.bind(this, {$highlight: highlight}));
     };
 
     this.$onHighlightedAll = function(highlight) {
       var update = {$highlight: highlight};
 
-      $scope.$apply(function() {
+      apply(function() {
         this.aOnHighlighted(update);
         this.aOnHoverHighlighted(update);
       }.bind(this));
     };
   }
 
-  UgraphCtrl.prototype.gap = function(p1, p2) {
+  ugraph_graph.prototype.gap = function(p1, p2) {
     if (this.cadence === null)
       return false;
 
@@ -158,7 +160,7 @@
   /**
    * Update state caused by this graph being hovered.
    */
-  UgraphCtrl.prototype.reconcileLocalHighlight = function() {
+  ugraph_graph.prototype.reconcileLocalHighlight = function() {
     /* just left hovered area */
     if (this._localxval === null) {
       if (this._highlight === NoHighlight) {
@@ -185,7 +187,7 @@
    * Update state caused by other graph being hovered and communicated
    * through ugraph-xval
    */
-  UgraphCtrl.prototype.reconcileAutoHighlight = function() {
+  ugraph_graph.prototype.reconcileAutoHighlight = function() {
     if (this._autoxval === null) {
       if (this._highlight == NoHighlight)
         return;
@@ -212,7 +214,7 @@
     this._highlight = highlight;
   };
 
-  UgraphCtrl.prototype.reconcileAutoRange = function() {
+  ugraph_graph.prototype.reconcileAutoRange = function() {
     if (this._autorange === NoRange) {
       this._range = NoRange;
       this.$onRange(NoRange);
@@ -226,7 +228,7 @@
     this._range = this._autorange;
   };
 
-  UgraphCtrl.prototype.reconcileLocalRange = function() {
+  ugraph_graph.prototype.reconcileLocalRange = function() {
     if (this._localrange === NoRange) {
       this._localdrag = false;
       this._range = NoRange;
@@ -241,12 +243,12 @@
     this._range = this._localrange;
   };
 
-  UgraphCtrl.prototype.reconcile = function() {
+  ugraph_graph.prototype.reconcile = function() {
     (this._localhover ? this.reconcileLocalHighlight : this.reconcileAutoHighlight).call(this);
     (this._localdrag ? this.reconcileLocalRange : this.reconcileAutoRange).call(this);
   };
 
-  UgraphCtrl.prototype.render = function() {
+  ugraph_graph.prototype.render = function() {
     this.reconcile();
 
     var ctx = this.context;
@@ -270,7 +272,7 @@
   };
 
   /* makes sure that only one render (at most) is requested per frame */
-  UgraphCtrl.prototype.requestRender = function() {
+  ugraph_graph.prototype.requestRender = function() {
     if (!!this._requested)
       return;
 
@@ -278,7 +280,7 @@
     this._requested = true;
   };
 
-  UgraphCtrl.prototype.updateAutoXval = function(_) {
+  ugraph_graph.prototype.updateAutoXval = function(_) {
     if (this._autoxval === _)
       return;
 
@@ -286,7 +288,7 @@
     this.requestRender();
   };
 
-  UgraphCtrl.prototype.updateAutoRange = function(_) {
+  ugraph_graph.prototype.updateAutoRange = function(_) {
     _ = _ || NoRange;
 
     if (this._autorange === _)
@@ -296,7 +298,7 @@
     this.requestRender();
   };
 
-  UgraphCtrl.prototype.updateFocus = function(_) {
+  ugraph_graph.prototype.updateFocus = function(_) {
     _ = _ || NoFocus;
 
     if (this._focus === _)
@@ -307,7 +309,7 @@
     this.update();
   };
 
-  UgraphCtrl.prototype.updateRenderer = function(_) {
+  ugraph_graph.prototype.updateRenderer = function(_) {
     var renderer = Renderers[_];
 
     if (!renderer)
@@ -323,7 +325,7 @@
   /**
    * Function that updates the x-value cache
    */
-  UgraphCtrl.prototype.eachPoint = function(xcache) {
+  ugraph_graph.prototype.eachPoint = function(xcache) {
     var focus = this._focus;
 
     return function(entry, x, y, y0) {
@@ -338,7 +340,7 @@
     };
   };
 
-  UgraphCtrl.prototype.updateHighlightMap = function(xcache) {
+  ugraph_graph.prototype.updateHighlightMap = function(xcache) {
     var ascending = d3.ascending;
 
     /* sort the generated cache by x-value */
@@ -361,7 +363,7 @@
     this._highlightMap = {range: range, entries: entries};
   };
 
-  UgraphCtrl.prototype.updateProjection = function(calculated) {
+  ugraph_graph.prototype.updateProjection = function(calculated) {
     var xmin = calculated.xmin,
         xmax = calculated.xmax,
         ymin = calculated.ymin,
@@ -376,7 +378,7 @@
     this.y.range([this.height - this.padding, this.padding]).domain([ymin, ymax]);
   };
 
-  UgraphCtrl.prototype.update = function(newSource) {
+  ugraph_graph.prototype.update = function(newSource) {
     if (!!newSource)
       this.source = newSource;
 
@@ -415,20 +417,20 @@
     this.requestRender();
   };
 
-  UgraphCtrl.prototype.mousedown = function(e) {
+  ugraph_graph.prototype.mousedown = function(e) {
     var x = this.x.invert(e.offsetX), y = this.y.invert(e.offsetY);
     this._localrange = {x: x, y: y, xend: x, yend: y};
     this._localdrag = true;
   };
 
-  UgraphCtrl.prototype.mouseup = function(e) {
+  ugraph_graph.prototype.mouseup = function(e) {
     if (this._localrange === NoRange)
       return;
 
     this.stopDrag(this.x.invert(e.offsetX), this.y.invert(e.offsetY));
   };
 
-  UgraphCtrl.prototype.stopDrag = function(x, y) {
+  ugraph_graph.prototype.stopDrag = function(x, y) {
     if (this._localrange === NoRange)
       return;
 
@@ -448,7 +450,7 @@
     this.update();
   };
 
-  UgraphCtrl.prototype.mousemove = function(e) {
+  ugraph_graph.prototype.mousemove = function(e) {
     if (this._localrange !== NoRange) {
       var x = this.x.invert(e.offsetX),
           y = this.y.invert(e.offsetY),
@@ -472,7 +474,7 @@
     }
   };
 
-  UgraphCtrl.prototype.mouseleave = function(e) {
+  ugraph_graph.prototype.mouseleave = function(e) {
     if (this._localrange !== NoRange)
       this.stopDrag(this.x.invert(e.offsetX), this.y.invert(e.offsetY));
 
@@ -482,7 +484,7 @@
     }
   };
 
-  UgraphCtrl.prototype.resize = function() {
+  ugraph_graph.prototype.resize = function() {
     var dirty = false;
     var newWidth = this.element.offsetWidth;
     var newHeight = this.element.offsetHeight;
@@ -501,7 +503,7 @@
       this.update();
   };
 
-  UgraphCtrl.prototype.renderDrag = function(ctx, drag) {
+  ugraph_graph.prototype.renderDrag = function(ctx, drag) {
     var x1 = this.x(drag.x),
         x2 = this.x(drag.xend);
 
@@ -519,7 +521,7 @@
     ctx.fillRect(xmx, this.padding, this.width - xmx - this.padding, h);
   };
 
-  UgraphCtrl.prototype.renderHighlight = function(ctx, highlight) {
+  ugraph_graph.prototype.renderHighlight = function(ctx, highlight) {
     var x = this.x(highlight.x);
 
     ctx.beginPath();
@@ -537,7 +539,7 @@
   /**
    * Finds the exact matching set of series to highlight.
    */
-  UgraphCtrl.prototype.findExactHighlighted = function(xval) {
+  ugraph_graph.prototype.findExactHighlighted = function(xval) {
     var range = this._highlightMap.range,
         entries = this._highlightMap.entries;
 
@@ -559,7 +561,7 @@
     return candidate;
   };
 
-  UgraphCtrl.prototype.findHighlighted = function(xval) {
+  ugraph_graph.prototype.findHighlighted = function(xval) {
     var range = this._highlightMap.range,
         entries = this._highlightMap.entries;
 
@@ -889,127 +891,5 @@
     return renderer;
   }
 
-  m.directive('ugraph', function($parse, $window) {
-    return {
-      restrict: 'A',
-      require: 'ugraph',
-      controller: UgraphCtrl,
-      link: function($scope, $element, $attr, ctrl) {
-        if (!!$attr.ugraphOnHighlighted) {
-          var onHighlightedFn = $parse($attr.ugraphOnHighlighted);
-          ctrl.aOnHighlighted = onHighlightedFn.bind(onHighlightedFn, $scope);
-        }
-
-        if (!!$attr.ugraphOnHoverHighlighted) {
-          var onHoverHighlightedFn = $parse($attr.ugraphOnHoverHighlighted);
-          ctrl.aOnHoverHighlighted = onHoverHighlightedFn.bind(onHoverHighlightedFn, $scope);
-        }
-
-        if (!!$attr.ugraphOnRange) {
-          var onRangeFn = $parse($attr.ugraphOnRange);
-          ctrl.aOnRange = onRangeFn.bind(onRangeFn, $scope);
-        }
-
-        if (!!$attr.ugraphOnDragRange) {
-          var onDragRangeFn = $parse($attr.ugraphOnDragRange);
-          ctrl.aOnDragRange = onDragRangeFn.bind(onDragRangeFn, $scope);
-        }
-
-        if (!!$attr.ugraphOnFocus) {
-          var onFocusFn = $parse($attr.ugraphOnFocus);
-          ctrl.aOnFocus = onFocusFn.bind(onFocusFn, $scope);
-        }
-
-        // watches
-
-        if (!!$attr.ugraphAutoXval) {
-          /* watch for updates on x value to change highlighting */
-          $scope.$watch($attr.ugraphAutoXval, ctrl.updateAutoXval.bind(ctrl));
-        }
-
-        if (!!$attr.ugraphAutoRange) {
-          /* watch for updates on x value to change highlighting */
-          $scope.$watch($attr.ugraphAutoRange, ctrl.updateAutoRange.bind(ctrl));
-        }
-
-        if (!!$attr.ugraphAutoFocus) {
-          /* watch for updates on x value to change highlighting */
-          $scope.$watch($attr.ugraphAutoFocus, ctrl.updateFocus.bind(ctrl));
-        }
-
-        if (!!$attr.ugraphRenderer) {
-          $scope.$watch($attr.ugraphRenderer, ctrl.updateRenderer.bind(ctrl));
-        }
-
-        if (!!$attr.ugraphHighlight) {
-          $scope.$watch($attr.ugraphHighlight, function(highlight) {
-            ctrl.highlight = !!highlight;
-          });
-        }
-
-        if (!!$attr.ugraphPadding) {
-          $scope.$watch($attr.ugraphPadding, function(_) {
-            _ = !!_;
-
-            if (ctrl.padding === _)
-              return;
-
-            ctrl.padding = _;
-            ctrl.update();
-          });
-        }
-
-        if (!!$attr.ugraphCadence) {
-          $scope.$watch($attr.ugraphCadence, function(_) {
-            if (ctrl.cadence === _)
-              return;
-
-            ctrl.cadence = _;
-            ctrl.update();
-          });
-        }
-
-        if (!!$attr.ugraphZeroBased) {
-          $scope.$watch($attr.ugraphZeroBased, function(_) {
-            _ = !!_;
-
-            if (ctrl.zeroBased === _)
-              return;
-
-            ctrl.zeroBased = _;
-            ctrl.update();
-          });
-        }
-
-        if (!!$attr.ugraph) {
-          $scope.$watch($attr.ugraph, ctrl.update.bind(ctrl));
-        }
-
-        var $w = angular.element($window);
-
-        var mousedown = ctrl.mousedown.bind(ctrl);
-        var mouseup = ctrl.mouseup.bind(ctrl);
-        var mousemove = ctrl.mousemove.bind(ctrl);
-        var mouseleave = ctrl.mouseleave.bind(ctrl);
-        var resize = ctrl.resize.bind(ctrl);
-
-        $element.bind('mousedown', mousedown);
-        $element.bind('mouseup', mouseup);
-        $element.bind('mousemove', mousemove);
-        $element.bind('mouseleave', mouseleave);
-        $w.bind('resize', resize);
-
-        $scope.$on('$destroy', function() {
-          $element.unbind('mousedown', mousedown);
-          $element.unbind('mouseup', mouseup);
-          $element.unbind('mousemove', mousemove);
-          $element.unbind('mouseleave', mousemove);
-          $w.unbind('resize', resize);
-        });
-
-        /* detect initial sizing */
-        ctrl.resize();
-      }
-    };
-  });
+  window.ugraph = ugraph;
 })();
