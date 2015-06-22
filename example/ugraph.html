@@ -17,6 +17,9 @@
 
   m.controller('UgraphExampleCtrl', function($scope){
     $scope.cadence = 500;
+    $scope.points = 100;
+    $scope.timeSeriesCount = 1;
+    $scope.dataCount = 100;
 
     $scope.sources = [];
 
@@ -33,14 +36,11 @@
       focus: ugraph.NoFocus
     };
 
-    $scope.timeSeriesCount = 2;
-    $scope.dataCount = 10;
-
     $scope.refresh = function() {
       var sources = [];
 
       for (var i = 0; i < $scope.timeSeriesCount; i++) {
-        sources.push(generate($scope.cadence, $scope.dataCount));
+        sources.push(generate($scope.cadence, $scope.dataCount, $scope.points));
       }
 
       $scope.sources = sources;
@@ -48,11 +48,12 @@
 
     $scope.$watch('timeSeriesCount', $scope.refresh.bind($scope));
     $scope.$watch('dataCount', $scope.refresh.bind($scope));
+    $scope.$watch('points', $scope.refresh.bind($scope));
 
     $scope.refresh();
   });
 
-  function generate(cadence, dataCount) {
+  function generate(cadence, dataCount, points) {
     var d = [],
         count = dataCount;
 
@@ -60,9 +61,9 @@
       var s = {data: []};
 
       var start = 0 + Math.floor(Math.random() * 20);
-      var end = 40 + Math.floor(Math.random() * 20);
+      var end = 10 + Math.floor(Math.random() * points);
 
-      var min = 50;
+      var min = i * 10;
 
       for (var j = start; j < end; j++) {
         if (Math.random() > 0.99)
@@ -112,7 +113,9 @@
       <span>Cadence:</span>
       <input type="number" ng-model="cadence" />
     </label>
+  </div>
 
+  <div>
     <label>
       <span>Time Series:</span>
       <input type="number" ng-model="timeSeriesCount" />
@@ -121,6 +124,11 @@
     <label>
       <span>Data Count:</span>
       <input type="number" ng-model="dataCount" />
+    </label>
+
+    <label>
+      <span>Points:</span>
+      <input type="number" ng-model="points" />
     </label>
   </div>
 
