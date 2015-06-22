@@ -1,8 +1,8 @@
 /* object that is being sent out on ugraph-hover-highlighted if no highlight
  * is active */
 var ugraph_NoHighlight = ugraph.NoHighlight = {x: null, data: []};
-var ugraph_NoRange = ugraph.NoRange = {x: null, y: null, xend: null, yend: null};
-var ugraph_NoFocus = ugraph.NoFocus = {xstart: null, xend: null};
+var ugraph_NoRange = ugraph.NoRange = {x: null, y: null, x1: null, y1: null};
+var ugraph_NoFocus = ugraph.NoFocus = {x0: null, x1: null};
 
 ugraph.ClickThreshold = 5;
 

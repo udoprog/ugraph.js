@@ -3,8 +3,8 @@
 /* object that is being sent out on ugraph-hover-highlighted if no highlight
  * is active */
 var ugraph_NoHighlight = ugraph.NoHighlight = {x: null, data: []};
-var ugraph_NoRange = ugraph.NoRange = {x: null, y: null, xend: null, yend: null};
-var ugraph_NoFocus = ugraph.NoFocus = {xstart: null, xend: null};
+var ugraph_NoRange = ugraph.NoRange = {x: null, y: null, x1: null, y1: null};
+var ugraph_NoFocus = ugraph.NoFocus = {x0: null, x1: null};
 
 ugraph.ClickThreshold = 5;
 
@@ -601,7 +601,7 @@ function ugraph_graph() {
         if (focus === ugraph_NoFocus)
           return true;
 
-        return focus.xstart <= x && focus.xend >= x;
+        return focus.x0 <= x && focus.x1 >= x;
       };
     }
 
@@ -635,8 +635,8 @@ function ugraph_graph() {
           ymax = calculated.ymax;
 
       if (currentFocus !== ugraph_NoFocus) {
-        xmin = currentFocus.xstart;
-        xmax = currentFocus.xend;
+        xmin = currentFocus.x0;
+        xmax = currentFocus.x1;
       }
 
       xScale.range([padding, width - padding]).domain([xmin, xmax]);
@@ -656,7 +656,7 @@ function ugraph_graph() {
       if (diff < clickThreshold) {
         currentFocus = ugraph_NoFocus;
       } else {
-        currentFocus = {xstart: xmn, xend: xmx};
+        currentFocus = {x0: xmn, x1: xmx};
       }
 
       $onFocus(currentFocus);
@@ -665,7 +665,7 @@ function ugraph_graph() {
 
     function renderDrag(ctx, drag) {
       var x1 = xScale(drag.x),
-          x2 = xScale(drag.xend);
+          x2 = xScale(drag.x1);
 
       var xmn = Math.min(x1, x2),
           xmx = Math.max(x1, x2),
@@ -931,9 +931,11 @@ function ugraph_graph() {
     };
 
     g.mousedown = function(e) {
-      var x = xScale.invert(e.offsetX), y = yScale.invert(e.offsetY);
-      localRange = {x: x, y: y, xend: x, yend: y};
-      localDragRange = true;
+      if (e.button === 0) {
+        var x = xScale.invert(e.offsetX), y = yScale.invert(e.offsetY);
+        localRange = {x: x, y: y, x1: x, y1: y};
+        localDragRange = true;
+      }
     };
 
     g.mouseup = function(e) {
@@ -949,8 +951,8 @@ function ugraph_graph() {
             y = yScale.invert(e.offsetY),
             l = localRange;
 
-        if (l.xend !== x || l.yend !== y) {
-          localRange = {x: l.x, y: l.y, xend: x, yend: y};
+        if (l.x1 !== x || l.y1 !== y) {
+          localRange = {x: l.x, y: l.y, x1: x, y1: y};
           $onRange(localRange);
         }
       }
