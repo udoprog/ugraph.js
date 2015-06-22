@@ -231,11 +231,9 @@ function ugraph_graph() {
       highlightMap = {range: range, entries: entries};
     }
 
-    function updateProjection(calculated) {
-      var xmin = calculated.xmin,
-          xmax = calculated.xmax,
-          ymin = calculated.ymin,
-          ymax = calculated.ymax;
+    function updateProjection(c) {
+      var xmin = c.xmin, xmax = c.xmax,
+          ymin = c.ymin, ymax = c.ymax;
 
       if (currentFocus !== ugraph_NoFocus) {
         xmin = currentFocus.x0;
@@ -415,15 +413,14 @@ function ugraph_graph() {
         .lineColors(lineColors);
 
       var xcache = {};
-      var calculated = r.calculate(source, eachPoint(xcache));
-
-      updateProjection(calculated);
+      var c = r.calculate(source, eachPoint(xcache));
       updateHighlightMap(xcache);
 
-      graph.clearRect(0, 0, width, height);
+      updateProjection(c);
 
       graph.save();
-      r(graph, calculated.data);
+      graph.clearRect(0, 0, width, height);
+      r(graph, c.data);
       graph.restore();
 
       this.requestRender();
