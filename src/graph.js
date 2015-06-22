@@ -41,6 +41,9 @@ function ugraph_graph() {
     /* active data source */
     var source = null;
 
+    /* current renderer */
+    var current = null;
+
     /* options */
     var zeroBased = false;
 
@@ -261,7 +264,7 @@ function ugraph_graph() {
       }
 
       $onFocus(currentFocus);
-      g.update();
+      g.updateSource();
     }
 
     function renderDrag(ctx, drag) {
@@ -385,20 +388,12 @@ function ugraph_graph() {
     function g() {
     }
 
-    g.update = function(newSource) {
+    g.updateSource = function(newSource) {
       if (!!newSource)
         source = newSource;
 
       element.width = width;
       element.height = height;
-
-      graphElement.width = width;
-      graphElement.height = height;
-
-      var graph = graphElement.getContext('2d');
-
-      if (!graph)
-        throw new Error('failed to access backing graph element for rendering');
 
       if (!source)
         return;
@@ -415,6 +410,31 @@ function ugraph_graph() {
       var xcache = {};
       var c = r.calculate(source, eachPoint(xcache));
       updateHighlightMap(xcache);
+
+      current = [r, c];
+
+      g.updateGraph();
+    };
+
+    g.updateGraph = function() {
+      if (!current)
+        return;
+
+      var r = current[0],
+          c = current[1];
+
+      var width_r = width * (c.width_r / c.width);
+      var height_r = height * (c.height_r / c.height);
+
+      /* size image after total rendering, to make sure we understand how to
+       * translate the position */
+      graphElement.width = width_r;
+      graphElement.height = height_r;
+
+      var graph = graphElement.getContext('2d');
+
+      if (!graph)
+        throw new Error('failed to access backing graph element for rendering');
 
       updateProjection(c);
 
@@ -492,7 +512,7 @@ function ugraph_graph() {
 
       currentFocus = _;
       $$onFocus(currentFocus);
-      g.update();
+      g.updateSource();
     };
 
     g.updateRenderer = function(_) {
@@ -505,7 +525,7 @@ function ugraph_graph() {
         return;
 
       renderer = _renderer;
-      g.update();
+      g.updateSource();
     };
 
     g.updatePadding = function(_) {
@@ -515,7 +535,7 @@ function ugraph_graph() {
         return;
 
       padding = _;
-      g.update();
+      g.updateSource();
     };
 
     g.updateHighlight = function(_) {
@@ -527,7 +547,7 @@ function ugraph_graph() {
         return;
 
       cadence = _;
-      this.update();
+      g.updateSource();
     };
 
     g.updateZeroBased = function(_) {
@@ -537,7 +557,7 @@ function ugraph_graph() {
         return;
 
       zeroBased = _;
-      this.update();
+      g.updateSource();
     };
 
     g.mousedown = function(e) {
@@ -605,7 +625,7 @@ function ugraph_graph() {
       }
 
       if (dirty)
-        g.update();
+        g.updateSource();
     };
 
     g.onHighlight = function(_) {

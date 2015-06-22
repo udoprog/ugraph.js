@@ -6,6 +6,9 @@ function ugraph_calculate_stacked(source, cb) {
   var xmin = Infinity, xmax = -Infinity;
   var ymin = Infinity, ymax = -Infinity;
 
+  var xmin_r = Infinity, xmax_r = -Infinity;
+  var ymin_r = Infinity, ymax_r = -Infinity;
+
   var dst = [];
 
   var stacking = {};
@@ -24,10 +27,15 @@ function ugraph_calculate_stacked(source, cb) {
       data.push([x, y, y0]);
       stacking[x] = y0 + y;
 
+      var ys = y + y0;
+
+      xmin_r = Math.min(x, xmin_r);
+      xmax_r = Math.max(x, xmax_r);
+      ymin_r = Math.min(y0, ymin_r);
+      ymax_r = Math.max(ys, ymax_r);
+
       if (!cb(entry, x, y, y0))
         continue;
-
-      var ys = y + y0;
 
       xmin = Math.min(x, xmin);
       xmax = Math.max(x, xmax);
@@ -41,6 +49,8 @@ function ugraph_calculate_stacked(source, cb) {
   return {
     width: xmax - xmin, height: ymax - ymin,
     xmin: xmin, xmax: xmax, ymin: ymin, ymax: ymax,
+    width_r: xmax_r - xmin_r, height_r: ymax_r - ymin_r,
+    xmin_r: xmin_r, xmax_r: xmax_r, ymin_r: ymin_r, ymax_r: ymax_r,
     data: dst
   };
 }

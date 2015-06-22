@@ -72,7 +72,7 @@
         }
 
         if (!!$attr.ugraph) {
-          $scope.$watch($attr.ugraph, g.update.bind(g));
+          $scope.$watch($attr.ugraph, g.updateSource.bind(g));
         }
 
         var $w = angular.element($window);

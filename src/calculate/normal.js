@@ -8,6 +8,9 @@ function ugraph_calculate_normal(source, cb) {
   var xmin = Infinity, xmax = -Infinity;
   var ymin = Infinity, ymax = -Infinity;
 
+  var xmin_r = Infinity, xmax_r = -Infinity;
+  var ymin_r = Infinity, ymax_r = -Infinity;
+
   var dst = [];
 
   while (++i < l) {
@@ -18,6 +21,11 @@ function ugraph_calculate_normal(source, cb) {
     while (++si < sl) {
       var p = entry[si], x = p[0], y = p[1];
       data.push([x, y]);
+
+      xmin_r = Math.min(x, xmin_r);
+      xmax_r = Math.max(x, xmax_r);
+      ymin_r = Math.min(y, ymin_r);
+      ymax_r = Math.max(y, ymax_r);
 
       if (!cb(entry, x, y, null))
         continue;
@@ -34,6 +42,8 @@ function ugraph_calculate_normal(source, cb) {
   return {
     width: xmax - xmin, height: ymax - ymin,
     xmin: xmin, xmax: xmax, ymin: ymin, ymax: ymax,
+    width_r: xmax_r - xmin_r, height_r: ymax_r - ymin_r,
+    xmin_r: xmin_r, xmax_r: xmax_r, ymin_r: ymin_r, ymax_r: ymax_r,
     data: dst
   };
 }
