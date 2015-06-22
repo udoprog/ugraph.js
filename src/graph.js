@@ -54,8 +54,6 @@ function ugraph_graph() {
     var height = element.offsetHeight;
     var width = element.offsetWidth;
 
-    var translation = {x: 0, y: 0};
-
     /* getter for the current zero-based state */
     var zeroBasedFn = (function() { return zeroBased; });
 
@@ -445,7 +443,7 @@ function ugraph_graph() {
        * Clear and render graph.
        */
       context.clearRect(0, 0, width, height);
-      context.drawImage(graphElement, translation.x, translation.y);
+      context.drawImage(graphElement, 0, 0);
 
       if (currentHighlight !== ugraph_NoHighlight && !!highlight) {
         context.save();
