@@ -192,17 +192,6 @@ function ugraph_graph() {
     }
 
     /**
-     * Reconcile state from local, and automatic sources.
-     *
-     * This is done here, instead of in various event-triggered method to make
-     * use of the fact that requestAnimationFrame is rate-limited.
-     */
-    function reconcile() {
-      (localHover ? reconcileLocalHighlight : reconcileAutoHighlight)();
-      (localDragRange ? reconcileLocalRange : reconcileAutoRange)();
-    }
-
-    /**
     * Function that updates the x-value cache
     */
     function eachPoint(xcache) {
@@ -443,8 +432,18 @@ function ugraph_graph() {
     };
 
     g.render = function() {
-      reconcile();
+      /*
+       * Reconcile state from local, and automatic sources.
+       *
+       * This is done here, instead of in various event-triggered method to make
+       * use of the fact that requestAnimationFrame is rate-limited.
+       */
+      (localHover ? reconcileLocalHighlight : reconcileAutoHighlight)();
+      (localDragRange ? reconcileLocalRange : reconcileAutoRange)();
 
+      /*
+       * Clear and render graph.
+       */
       context.clearRect(0, 0, width, height);
       context.drawImage(graphElement, translation.x, translation.y);
 
