@@ -54,6 +54,9 @@ function ugraph_graph() {
     var xScale = d3.scale.linear();
     var yScale = d3.scale.linear();
 
+    var xRender = d3.scale.linear();
+    var yRender = d3.scale.linear();
+
     var height = element.offsetHeight;
     var width = element.offsetWidth;
 
@@ -234,9 +237,12 @@ function ugraph_graph() {
       highlightMap = {range: range, entries: entries};
     }
 
-    function updateProjection(c) {
+    function updateProjection(c, width_r, height_r) {
       var xmin = c.xmin, xmax = c.xmax,
           ymin = c.ymin, ymax = c.ymax;
+
+      var xmin_r = c.xmin_r, xmax_r = c.xmax_r,
+          ymin_r = c.ymin_r, ymax_r = c.ymax_r;
 
       if (currentFocus !== ugraph_NoFocus) {
         xmin = currentFocus.x0;
@@ -245,6 +251,9 @@ function ugraph_graph() {
 
       xScale.range([padding, width - padding]).domain([xmin, xmax]);
       yScale.range([height - padding, padding]).domain([ymin, ymax]);
+
+      xRender.range([0, width_r]).domain([xmin_r, xmax_r]);
+      yRender.range([height_r, 0]).domain([ymin_r, ymax_r]);
     }
 
     function stopDrag(x, y) {
@@ -399,8 +408,8 @@ function ugraph_graph() {
         return;
 
       var r = renderer()
-        .x(xScale)
-        .y(yScale)
+        .x(xRender)
+        .y(yRender)
         .gap(gap)
         .zeroBased(zeroBasedFn)
         .lineCap(lineCap)
@@ -423,8 +432,16 @@ function ugraph_graph() {
       var r = current[0],
           c = current[1];
 
-      var width_r = width * (c.width_r / c.width);
-      var height_r = height * (c.height_r / c.height);
+      var w = c.width;
+
+      if (currentFocus !== ugraph_NoFocus) {
+        w = currentFocus.x1 - currentFocus.x0;
+      }
+
+      var width_r = Math.round((width - padding * 2) * (c.width_r / w));
+      var height_r = Math.round((height - padding * 2) * (c.height_r / c.height));
+
+      updateProjection(c, width_r, height_r);
 
       /* size image after total rendering, to make sure we understand how to
        * translate the position */
@@ -436,10 +453,8 @@ function ugraph_graph() {
       if (!graph)
         throw new Error('failed to access backing graph element for rendering');
 
-      updateProjection(c);
-
       graph.save();
-      graph.clearRect(0, 0, width, height);
+      graph.clearRect(0, 0, width_r, height_r);
       r(graph, c.data);
       graph.restore();
 
@@ -460,7 +475,17 @@ function ugraph_graph() {
        * Clear and render graph.
        */
       context.clearRect(0, 0, width, height);
-      context.drawImage(graphElement, 0, 0);
+
+      var graphX = padding, graphY = padding;
+
+      var c = current[1];
+
+      if (currentFocus !== ugraph_NoFocus) {
+        graphX -= xRender(currentFocus.x0);
+        graphY -= yRender(c.ymax);
+      }
+
+      context.drawImage(graphElement, graphX, graphY);
 
       if (currentHighlight !== ugraph_NoHighlight && !!highlight) {
         context.save();
