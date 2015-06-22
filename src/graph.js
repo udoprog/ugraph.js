@@ -514,10 +514,10 @@ function ugraph_graph() {
     g.updatePadding = function(_) {
       _ = !!_;
 
-      if (g.padding === _)
+      if (padding === _)
         return;
 
-      g.padding = _;
+      padding = _;
       g.update();
     };
 
