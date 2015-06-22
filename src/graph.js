@@ -35,21 +35,22 @@ function ugraph_graph() {
       return (p2[0] - p1[0]) > cadence;
     };
 
+    /* options */
+    var zeroBased = false;
+    var highlight = true;
+    var padding = 10;
+    var cadence = null;
+
     var context = element.getContext('2d');
+    var graphRendered = true;
     var graphElement = document.createElement('canvas');
+    var graphX = padding, graphY = padding;
 
     /* active data source */
     var source = null;
 
     /* current renderer */
     var current = null;
-
-    /* options */
-    var zeroBased = false;
-
-    var highlight = true;
-    var padding = 10;
-    var cadence = null;
 
     var xScale = d3.scale.linear();
     var yScale = d3.scale.linear();
@@ -65,17 +66,16 @@ function ugraph_graph() {
 
     var renderer = defaultRenderer;
 
-    /* if there is an active animation frame request */
-    var requested = false;
-
     /* current focus */
     var currentFocus = ugraph_NoFocus;
+    var renderedFocus = ugraph_NoFocus;
 
     /* mapping to support x-value bisecting to quickly find highlighted values */
     var highlightMap = {range: [], entries: []};
 
     /* render range */
     var currentRange = ugraph_NoRange;
+    var renderedRange = ugraph_NoRange;
 
     /* drag/drop */
     var localRange = ugraph_NoRange;
@@ -97,6 +97,7 @@ function ugraph_graph() {
 
     /* the current highlight */
     var currentHighlight = ugraph_NoHighlight;
+    var renderedHighlight = ugraph_NoHighlight;
 
     /* callback when highlight has changed */
     var onHighlight = ugraph_noop;
@@ -272,8 +273,10 @@ function ugraph_graph() {
         currentFocus = {x0: xmn, x1: xmx};
       }
 
-      $onFocus(currentFocus);
-      g.updateSource();
+      apply(function() {
+        $onFocus(currentFocus);
+        g.updateSource();
+      });
     }
 
     function renderDrag(ctx, drag) {
@@ -360,38 +363,84 @@ function ugraph_graph() {
       return smallest;
     }
 
-    function $$onFocus(focus) {
+    function $onFocus(focus) {
       onFocus({$focus: focus});
     }
 
-    function $onFocus(focus) {
-      apply(onFocus.bind(onFocus, {$focus: focus}));
-    }
-
     function $onRange(range) {
-      apply(onRange.bind(onRange, {$range: range}));
+      onRange({$range: range});
     }
 
     function $onRangeAll(range) {
       var update = {$range: range};
-
-      apply(function() {
-        onRange(update);
-        onDragRange(update);
-      });
+      onRange(update);
+      onDragRange(update);
     }
 
     function $onHighlight(highlight) {
-      apply(onHighlight.bind(onHighlight, {$highlight: highlight}));
+      onHighlight({$highlight: highlight});
     }
 
     function $onHighlightAll(highlight) {
       var update = {$highlight: highlight};
+      onHighlight(update);
+      onHoverHighlight(update);
+    }
 
-      apply(function() {
-        onHighlight(update);
-        onHoverHighlight(update);
-      });
+    function render() {
+      /*
+       * Reconcile state from local, and automatic sources.
+       *
+       * This is done here, instead of in various event-triggered method to make
+       * use of the fact that requestAnimationFrame is rate-limited.
+       */
+      (localHover ? reconcileLocalHighlight : reconcileAutoHighlight)();
+      (localDragRange ? reconcileLocalRange : reconcileAutoRange)();
+
+      if (currentFocus !== renderedFocus) {
+        if (currentFocus !== ugraph_NoFocus) {
+          var c = current[1];
+          graphX = padding - xRender(currentFocus.x0);
+          graphY = padding - yRender(c.ymax);
+        } else {
+          graphX = padding;
+          graphY = padding;
+        }
+
+        graphRendered = false;
+        renderedFocus = currentFocus;
+      }
+
+      var dirtyHighlight = currentHighlight !== renderedHighlight;
+      var dirtyRange = currentRange !== renderedRange;
+
+      var dirty = !graphRendered || dirtyHighlight || dirtyRange;
+
+      if (dirty) {
+        context.clearRect(0, 0, width, height);
+        context.drawImage(graphElement, graphX, graphY);
+        graphRendered = true;
+      }
+
+      if (currentHighlight !== renderedHighlight) {
+        if (currentHighlight !== ugraph_NoHighlight) {
+          context.save();
+          renderHighlight(context, currentHighlight);
+          context.restore();
+        }
+
+        renderedHighlight = currentHighlight;
+      }
+
+      if (currentRange !== renderedRange) {
+        if (renderedRange !== ugraph_NoRange) {
+          context.save();
+          renderDrag(context, currentRange);
+          context.restore();
+        }
+
+        renderedRange = currentRange;
+      }
     }
 
     function g() {
@@ -458,57 +507,8 @@ function ugraph_graph() {
       r(graph, c.data);
       graph.restore();
 
-      this.requestRender();
-    };
-
-    g.render = function() {
-      /*
-       * Reconcile state from local, and automatic sources.
-       *
-       * This is done here, instead of in various event-triggered method to make
-       * use of the fact that requestAnimationFrame is rate-limited.
-       */
-      (localHover ? reconcileLocalHighlight : reconcileAutoHighlight)();
-      (localDragRange ? reconcileLocalRange : reconcileAutoRange)();
-
-      /*
-       * Clear and render graph.
-       */
-      context.clearRect(0, 0, width, height);
-
-      var graphX = padding, graphY = padding;
-
-      var c = current[1];
-
-      if (currentFocus !== ugraph_NoFocus) {
-        graphX -= xRender(currentFocus.x0);
-        graphY -= yRender(c.ymax);
-      }
-
-      context.drawImage(graphElement, graphX, graphY);
-
-      if (currentHighlight !== ugraph_NoHighlight && !!highlight) {
-        context.save();
-        renderHighlight(context, currentHighlight);
-        context.restore();
-      }
-
-      if (currentRange !== ugraph_NoRange) {
-        context.save();
-        renderDrag(context, currentRange);
-        context.restore();
-      }
-
-      requested = false;
-    };
-
-    /* makes sure that only one render (at most) is requested per frame */
-    g.requestRender = function() {
-      if (!!requested)
-        return;
-
-      requestAnimationFrame(this.render.bind(this));
-      requested = true;
+      graphRendered = false;
+      render();
     };
 
     g.updateAutoXval = function(_) {
@@ -516,7 +516,7 @@ function ugraph_graph() {
         return;
 
       autoHighlightX = _;
-      this.requestRender();
+      render();
     };
 
     g.updateAutoRange = function(_) {
@@ -526,7 +526,7 @@ function ugraph_graph() {
         return;
 
       autoRange = _;
-      this.requestRender();
+      render();
     };
 
     g.updateFocus = function(_) {
@@ -536,7 +536,7 @@ function ugraph_graph() {
         return;
 
       currentFocus = _;
-      $$onFocus(currentFocus);
+      $onFocus(currentFocus);
       g.updateSource();
     };
 
@@ -608,7 +608,7 @@ function ugraph_graph() {
 
         if (l.x1 !== x || l.y1 !== y) {
           localRange = {x: l.x, y: l.y, x1: x, y1: y};
-          $onRange(localRange);
+          apply($onRange.bind(localRange));
         }
       }
 
@@ -619,7 +619,7 @@ function ugraph_graph() {
 
         if (localHighlightX !== newX) {
           localHighlightX = newX;
-          this.requestRender();
+          apply(render);
         }
       }
     };
@@ -630,7 +630,7 @@ function ugraph_graph() {
 
       if (localHighlightX !== null) {
         localHighlightX = null;
-        this.requestRender();
+        apply(render);
       }
     };
 
