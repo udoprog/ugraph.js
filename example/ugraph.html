@@ -33,22 +33,28 @@
       focus: ugraph.NoFocus
     };
 
+    $scope.timeSeriesCount = 2;
+    $scope.dataCount = 10;
+
     $scope.refresh = function() {
       var sources = [];
 
-      for (var i = 0; i < 2; i++) {
-        sources.push(generate($scope.cadence));
+      for (var i = 0; i < $scope.timeSeriesCount; i++) {
+        sources.push(generate($scope.cadence, $scope.dataCount));
       }
 
       $scope.sources = sources;
     };
 
+    $scope.$watch('timeSeriesCount', $scope.refresh.bind($scope));
+    $scope.$watch('dataCount', $scope.refresh.bind($scope));
+
     $scope.refresh();
   });
 
-  function generate() {
-    var d = [];
-    var count = 10;
+  function generate(cadence, dataCount) {
+    var d = [],
+        count = dataCount;
 
     for (var i = 0; i < count; i++) {
       var s = {data: []};
@@ -105,6 +111,16 @@
     <label>
       <span>Cadence:</span>
       <input type="number" ng-model="cadence" />
+    </label>
+
+    <label>
+      <span>Time Series:</span>
+      <input type="number" ng-model="timeSeriesCount" />
+    </label>
+
+    <label>
+      <span>Data Count:</span>
+      <input type="number" ng-model="dataCount" />
     </label>
   </div>
 
