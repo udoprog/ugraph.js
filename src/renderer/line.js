@@ -1,7 +1,6 @@
 import "renderer";
 import "../globals";
-import "../calculate/zerobased";
-import "../calculate/normal";
+import "../calculate/default";
 
 ugraph.renderer.line = ugraph_renderer_line;
 

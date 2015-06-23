@@ -1,4 +1,6 @@
 import "calculate";
+import "../core/min";
+import "../core/max";
 
 ugraph.calculate.stacked = ugraph_calculate_stacked;
 
@@ -29,18 +31,18 @@ function ugraph_calculate_stacked(source, cb) {
 
       var ys = y + y0;
 
-      xmin_r = Math.min(x, xmin_r);
-      xmax_r = Math.max(x, xmax_r);
-      ymin_r = Math.min(y0, ymin_r);
-      ymax_r = Math.max(ys, ymax_r);
+      xmin_r = ugraph_min(x, xmin_r);
+      xmax_r = ugraph_max(x, xmax_r);
+      ymin_r = ugraph_min(y0, ymin_r);
+      ymax_r = ugraph_max(ys, ymax_r);
 
       if (!cb(entry, x, y, y0))
         continue;
 
-      xmin = Math.min(x, xmin);
-      xmax = Math.max(x, xmax);
-      ymin = Math.min(y0, ymin);
-      ymax = Math.max(ys, ymax);
+      xmin = ugraph_min(x, xmin);
+      xmax = ugraph_max(x, xmax);
+      ymin = ugraph_min(y0, ymin);
+      ymax = ugraph_max(ys, ymax);
     }
 
     dst.push({data: data});
