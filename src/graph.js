@@ -44,7 +44,6 @@ function ugraph_graph() {
     var context = element.getContext('2d');
     var graphRendered = true;
     var graphElement = document.createElement('canvas');
-    var graphX = padding, graphY = padding;
 
     /* active data source */
     var source = null;
@@ -54,9 +53,6 @@ function ugraph_graph() {
 
     var xScale = d3.scale.linear();
     var yScale = d3.scale.linear();
-
-    var xRender = d3.scale.linear();
-    var yRender = d3.scale.linear();
 
     var height = element.offsetHeight;
     var width = element.offsetWidth;
@@ -68,7 +64,6 @@ function ugraph_graph() {
 
     /* current focus */
     var currentFocus = ugraph_NoFocus;
-    var renderedFocus = ugraph_NoFocus;
 
     /* mapping to support x-value bisecting to quickly find highlighted values */
     var highlightMap = {range: [], entries: []};
@@ -238,12 +233,9 @@ function ugraph_graph() {
       highlightMap = {range: range, entries: entries};
     }
 
-    function updateProjection(c, width_r, height_r) {
+    function updateProjection(c) {
       var xmin = c.xmin, xmax = c.xmax,
           ymin = c.ymin, ymax = c.ymax;
-
-      var xmin_r = c.xmin_r, xmax_r = c.xmax_r,
-          ymin_r = c.ymin_r, ymax_r = c.ymax_r;
 
       if (currentFocus !== ugraph_NoFocus) {
         xmin = currentFocus.x0;
@@ -252,9 +244,6 @@ function ugraph_graph() {
 
       xScale.range([padding, width - padding]).domain([xmin, xmax]);
       yScale.range([height - padding, padding]).domain([ymin, ymax]);
-
-      xRender.range([0, width_r]).domain([xmin_r, xmax_r]);
-      yRender.range([height_r, 0]).domain([ymin_r, ymax_r]);
     }
 
     function stopDrag(x, y) {
@@ -397,20 +386,6 @@ function ugraph_graph() {
       (localHover ? reconcileLocalHighlight : reconcileAutoHighlight)();
       (localDragRange ? reconcileLocalRange : reconcileAutoRange)();
 
-      if (currentFocus !== renderedFocus) {
-        if (currentFocus !== ugraph_NoFocus) {
-          var c = current[1];
-          graphX = padding - xRender(currentFocus.x0);
-          graphY = padding - yRender(c.ymax);
-        } else {
-          graphX = padding;
-          graphY = padding;
-        }
-
-        graphRendered = false;
-        renderedFocus = currentFocus;
-      }
-
       var dirtyHighlight = currentHighlight !== renderedHighlight;
       var dirtyRange = currentRange !== renderedRange;
 
@@ -418,7 +393,7 @@ function ugraph_graph() {
 
       if (dirty) {
         context.clearRect(0, 0, width, height);
-        context.drawImage(graphElement, graphX, graphY);
+        context.drawImage(graphElement, 0, 0);
         graphRendered = true;
       }
 
@@ -453,12 +428,17 @@ function ugraph_graph() {
       element.width = width;
       element.height = height;
 
+      /* size image after total rendering, to make sure we understand how to
+       * translate the position */
+      graphElement.width = width;
+      graphElement.height = height;
+
       if (!source)
         return;
 
       var r = renderer()
-        .x(xRender)
-        .y(yRender)
+        .x(xScale)
+        .y(yScale)
         .gap(gap)
         .zeroBased(zeroBasedFn)
         .lineCap(lineCap)
@@ -478,24 +458,9 @@ function ugraph_graph() {
       if (!current)
         return;
 
-      var r = current[0],
-          c = current[1];
+      var r = current[0], c = current[1];
 
-      var w = c.width;
-
-      if (currentFocus !== ugraph_NoFocus) {
-        w = currentFocus.x1 - currentFocus.x0;
-      }
-
-      var width_r = Math.round((width - padding * 2) * (c.width_r / w));
-      var height_r = Math.round((height - padding * 2) * (c.height_r / c.height));
-
-      updateProjection(c, width_r, height_r);
-
-      /* size image after total rendering, to make sure we understand how to
-       * translate the position */
-      graphElement.width = width_r;
-      graphElement.height = height_r;
+      updateProjection(c);
 
       var graph = graphElement.getContext('2d');
 
@@ -503,7 +468,7 @@ function ugraph_graph() {
         throw new Error('failed to access backing graph element for rendering');
 
       graph.save();
-      graph.clearRect(0, 0, width_r, height_r);
+      graph.clearRect(0, 0, width, height);
       r(graph, c.data);
       graph.restore();
 
