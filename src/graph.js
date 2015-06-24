@@ -425,8 +425,8 @@ function ugraph_graph() {
       if (!!newSource)
         source = newSource;
 
-      element.width = width;
-      element.height = height;
+      width = element.width = element.offsetWidth;
+      height = element.height = element.offsetHeight;
 
       /* size image after total rendering, to make sure we understand how to
        * translate the position */
@@ -601,8 +601,6 @@ function ugraph_graph() {
 
     g.resize = function() {
       var dirty = false;
-      var newWidth = element.offsetWidth;
-      var newHeight = element.offsetHeight;
 
       if (width !== newWidth) {
         width = newWidth;
