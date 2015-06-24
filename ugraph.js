@@ -1,5 +1,5 @@
 !function() {
-  var ugraph = {version: "0.0.3"};
+  var ugraph = {version: "0.0.5"};
 /* object that is being sent out on ugraph-hover-highlighted if no highlight
  * is active */
 var ugraph_NoHighlight = ugraph.NoHighlight = {x: null, data: []};
@@ -351,6 +351,17 @@ function ugraph_renderer_stackedline() {
   return renderer;
 }
 function ugraph_noop() { }
+ugraph.parentSizer = ugraph_parentSizer;
+
+/**
+ * Size the rendering area after the parent element of the canvas.
+ */
+function ugraph_parentSizer(element) {
+  return {
+    w: element.parentElement.offsetWidth,
+    h: element.parentElement.offsetHeight
+  };
+}
 
 function ugraph_graph() {
   var clickThreshold = ugraph.ClickThreshold;
@@ -359,6 +370,7 @@ function ugraph_graph() {
   var lineCap = ugraph.LineCap;
   var lineWidth = ugraph.LineWidth;
   var lineColors = ugraph.LineColors;
+  var sizer = ugraph_parentSizer;
 
   var highlightCap = ugraph.HighlightCap;
   var highlightStyle = ugraph.HighlightStyle;
@@ -396,9 +408,6 @@ function ugraph_graph() {
 
     /* active data source */
     var source = null;
-
-    /* current renderer */
-    var current = null;
 
     var xScale = d3.scale.linear();
     var yScale = d3.scale.linear();
@@ -540,17 +549,27 @@ function ugraph_graph() {
       currentRange = localRange;
     }
 
-    /**
-    * Function that updates the x-value cache
-    */
-    function eachPoint(xcache) {
-      // store local copy to avoid higher scope lookups and abrupt changes
-      var focus = currentFocus;
-
+    function eachPointCache(xcache) {
       return function(entry, x, y, y0) {
         var axle = xcache[x] || {x: x, data: []};
         axle.data.push({entry: entry, value: y, stackValue: y0});
         xcache[x] = axle;
+        return true;
+      };
+    }
+
+    /**
+    * Function that updates the x-value cache
+    */
+    function eachPoint(xcache, focus) {
+      var cacheFn = eachPointCache(xcache);
+
+      if (focus === ugraph_NoFocus)
+        return cacheFn;
+
+      return function(entry, x, y, y0) {
+        if (!cacheFn(entry, x, y, y0))
+          return false;
 
         if (focus === ugraph_NoFocus)
           return true;
@@ -582,13 +601,13 @@ function ugraph_graph() {
       highlightMap = {range: range, entries: entries};
     }
 
-    function updateProjection(c) {
+    function updateProjection(c, focus) {
       var xmin = c.xmin, xmax = c.xmax,
           ymin = c.ymin, ymax = c.ymax;
 
-      if (currentFocus !== ugraph_NoFocus) {
-        xmin = currentFocus.x0;
-        xmax = currentFocus.x1;
+      if (focus !== ugraph_NoFocus) {
+        xmin = focus.x0;
+        xmax = focus.x1;
       }
 
       xScale.range([padding, width - padding]).domain([xmin, xmax]);
@@ -613,7 +632,7 @@ function ugraph_graph() {
 
       apply(function() {
         $onFocus(currentFocus);
-        g.updateSource();
+        g.update();
       });
     }
 
@@ -770,20 +789,48 @@ function ugraph_graph() {
     function g() {
     }
 
-    g.updateSource = function(newSource) {
-      if (!!newSource)
+    g.checkSize = function() {
+      var newSize = sizer(element);
+      var dirty = false;
+
+      if (width !== newSize.w) {
+        width = newSize.w;
+        graphElement.width = width;
+        element.width = width;
+        dirty = true;
+      }
+
+      if (height !== newSize.h) {
+        height = newSize.h;
+        element.height = height;
+        graphElement.height = height;
+        dirty = true;
+      }
+
+      return dirty;
+    };
+
+    g.resize = function(newSource) {
+      var dirty = false;
+
+      if (g.checkSize())
+        dirty = true;
+
+      if (!!newSource && source !== newSource) {
         source = newSource;
+        dirty = true;
+      }
 
-      element.width = width;
-      element.height = height;
+      if (dirty)
+        g.update();
+    };
 
-      /* size image after total rendering, to make sure we understand how to
-       * translate the position */
-      graphElement.width = width;
-      graphElement.height = height;
-
-      if (!source)
+    g.update = function() {
+      // nothing to render...
+      if (!source || !width || !height)
         return;
+
+      /* end: reconciliation */
 
       var r = renderer()
         .x(xScale)
@@ -795,21 +842,10 @@ function ugraph_graph() {
         .lineColors(lineColors);
 
       var xcache = {};
-      var c = r.calculate(source, eachPoint(xcache));
+      var c = r.calculate(source, eachPoint(xcache, currentFocus));
+
       updateHighlightMap(xcache);
-
-      current = [r, c];
-
-      g.updateGraph();
-    };
-
-    g.updateGraph = function() {
-      if (!current)
-        return;
-
-      var r = current[0], c = current[1];
-
-      updateProjection(c);
+      updateProjection(c, currentFocus);
 
       var graph = graphElement.getContext('2d');
 
@@ -850,8 +886,8 @@ function ugraph_graph() {
         return;
 
       currentFocus = _;
+      g.update();
       $onFocus(currentFocus);
-      g.updateSource();
     };
 
     g.updateRenderer = function(_) {
@@ -864,7 +900,7 @@ function ugraph_graph() {
         return;
 
       renderer = _renderer;
-      g.updateSource();
+      g.update();
     };
 
     g.updatePadding = function(_) {
@@ -874,7 +910,7 @@ function ugraph_graph() {
         return;
 
       padding = _;
-      g.updateSource();
+      g.update();
     };
 
     g.updateHighlight = function(_) {
@@ -886,7 +922,7 @@ function ugraph_graph() {
         return;
 
       cadence = _;
-      g.updateSource();
+      g.update();
     };
 
     g.updateZeroBased = function(_) {
@@ -896,7 +932,7 @@ function ugraph_graph() {
         return;
 
       zeroBased = _;
-      g.updateSource();
+      g.update();
     };
 
     g.mousedown = function(e) {
@@ -946,25 +982,6 @@ function ugraph_graph() {
         localHighlightX = null;
         apply(render);
       }
-    };
-
-    g.resize = function() {
-      var dirty = false;
-      var newWidth = element.offsetWidth;
-      var newHeight = element.offsetHeight;
-
-      if (width !== newWidth) {
-        width = newWidth;
-        dirty = true;
-      }
-
-      if (height !== newHeight) {
-        height = newHeight;
-        dirty = true;
-      }
-
-      if (dirty)
-        g.updateSource();
     };
 
     g.onHighlight = function(_) {
@@ -1049,6 +1066,18 @@ function ugraph_graph() {
   graph.lineColors = function(_) {
     if (!arguments.length) return lineColors;
     lineColors = _;
+    return this;
+  };
+
+  /**
+   * Specify a function to determine the size of the canvas.
+   *
+   * This function will be advised any time the grapher calls update(), any
+   * differences will be reconciled.
+   */
+  graph.sizer = function(_) {
+    if (!arguments.length) return sizer;
+    sizer = _;
     return this;
   };
 

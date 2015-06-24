@@ -1,2 +1,2 @@
 !function() {
-  var ugraph = {version: "0.0.3"};
+  var ugraph = {version: "0.0.5"};
