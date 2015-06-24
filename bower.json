@@ -1,6 +1,6 @@
 {
   "name": "ugraph",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "main": [
     "ugraph.js",
     "ugraph.angular.js"
