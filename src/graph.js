@@ -64,6 +64,7 @@ function ugraph_graph() {
 
     /* current focus */
     var currentFocus = ugraph_NoFocus;
+    var renderedFocus = ugraph_NoFocus;
 
     /* mapping to support x-value bisecting to quickly find highlighted values */
     var highlightMap = {range: [], entries: []};
@@ -233,13 +234,13 @@ function ugraph_graph() {
       highlightMap = {range: range, entries: entries};
     }
 
-    function updateProjection(c) {
+    function updateProjection(c, focus) {
       var xmin = c.xmin, xmax = c.xmax,
           ymin = c.ymin, ymax = c.ymax;
 
-      if (currentFocus !== ugraph_NoFocus) {
-        xmin = currentFocus.x0;
-        xmax = currentFocus.x1;
+      if (focus !== ugraph_NoFocus) {
+        xmin = focus.x0;
+        xmax = focus.x1;
       }
 
       xScale.range([padding, width - padding]).domain([xmin, xmax]);
@@ -264,7 +265,7 @@ function ugraph_graph() {
 
       apply(function() {
         $onFocus(currentFocus);
-        g.updateSource();
+        g.update();
       });
     }
 
@@ -421,20 +422,47 @@ function ugraph_graph() {
     function g() {
     }
 
-    g.updateSource = function(newSource) {
-      if (!!newSource)
+    g.update = function(newSource) {
+      /* start: checks to reconcile differences in model vs what is rendered */
+      var dirty = false;
+
+      if (!!newSource) {
         source = newSource;
+        dirty = true;
+      }
 
-      width = element.width = element.offsetWidth;
-      height = element.height = element.offsetHeight;
+      var newWidth = element.offsetWidth;
+      var newHeight = element.offsetHeight;
 
-      /* size image after total rendering, to make sure we understand how to
-       * translate the position */
-      graphElement.width = width;
-      graphElement.height = height;
+      if (width !== newWidth) {
+        width = newWidth;
+        graphElement.width = width;
+        element.width = width;
+        dirty = true;
+      }
+
+      if (height !== newHeight) {
+        height = newHeight;
+        element.height = height;
+        graphElement.height = height;
+        dirty = true;
+      }
+
+      if (currentFocus !== renderedFocus) {
+        renderedFocus = currentFocus;
+        dirty = true;
+      }
+
+      if (!width || !height)
+        return;
 
       if (!source)
         return;
+
+      if (!dirty)
+        return;
+
+      /* end: reconciliation */
 
       var r = renderer()
         .x(xScale)
@@ -451,16 +479,12 @@ function ugraph_graph() {
 
       current = [r, c];
 
-      g.updateGraph();
-    };
-
-    g.updateGraph = function() {
       if (!current)
         return;
 
       var r = current[0], c = current[1];
 
-      updateProjection(c);
+      updateProjection(c, renderedFocus);
 
       var graph = graphElement.getContext('2d');
 
@@ -502,7 +526,7 @@ function ugraph_graph() {
 
       currentFocus = _;
       $onFocus(currentFocus);
-      g.updateSource();
+      g.update();
     };
 
     g.updateRenderer = function(_) {
@@ -515,7 +539,7 @@ function ugraph_graph() {
         return;
 
       renderer = _renderer;
-      g.updateSource();
+      g.update();
     };
 
     g.updatePadding = function(_) {
@@ -525,7 +549,7 @@ function ugraph_graph() {
         return;
 
       padding = _;
-      g.updateSource();
+      g.update();
     };
 
     g.updateHighlight = function(_) {
@@ -537,7 +561,7 @@ function ugraph_graph() {
         return;
 
       cadence = _;
-      g.updateSource();
+      g.update();
     };
 
     g.updateZeroBased = function(_) {
@@ -547,7 +571,7 @@ function ugraph_graph() {
         return;
 
       zeroBased = _;
-      g.updateSource();
+      g.update();
     };
 
     g.mousedown = function(e) {
@@ -601,19 +625,25 @@ function ugraph_graph() {
 
     g.resize = function() {
       var dirty = false;
+      var newWidth = element.offsetWidth;
+      var newHeight = element.offsetHeight;
 
       if (width !== newWidth) {
         width = newWidth;
+        graphElement.width = width;
+        element.width = width;
         dirty = true;
       }
 
       if (height !== newHeight) {
         height = newHeight;
+        element.height = height;
+        graphElement.height = height;
         dirty = true;
       }
 
       if (dirty)
-        g.updateSource();
+        g.update();
     };
 
     g.onHighlight = function(_) {
