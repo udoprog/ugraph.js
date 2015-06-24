@@ -72,7 +72,7 @@
         }
 
         if (!!$attr.ugraph) {
-          $scope.$watch($attr.ugraph, g.update.bind(g));
+          $scope.$watch($attr.ugraph, g.resize.bind(g));
         }
 
         var $w = angular.element($window);
@@ -81,7 +81,7 @@
         var mouseup = g.mouseup.bind(g);
         var mousemove = g.mousemove.bind(g);
         var mouseleave = g.mouseleave.bind(g);
-        var resize = g.update.bind(g);
+        var resize = g.resize.bind(g, null);
 
         $element.bind('mousedown', mousedown);
         $element.bind('mouseup', mouseup);
@@ -97,12 +97,10 @@
           $w.unbind('resize', resize);
         });
 
-        $scope.$on('ugraph-resize', function() {
-          g.update();
-        });
+        $scope.$on('ugraph-resize', resize);
 
         /* detect initial sizing */
-        g.update();
+        g.resize();
       }
     };
   });

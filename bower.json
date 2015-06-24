@@ -5,7 +5,7 @@
     "ugraph.js",
     "ugraph.angular.js"
   ],
-  "exclude": [
+  "ignore": [
     "/example/",
     "/src/",
     "/bin/",
