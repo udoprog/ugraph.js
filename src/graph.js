@@ -97,6 +97,8 @@ function ugraph_graph() {
     var onHighlight = ugraph_noop;
     /* callback when highlight has changed because of local hovering */
     var onHoverHighlight = ugraph_noop;
+    /* callback when extent changes */
+    var onExtent = ugraph_noop;
     /* callback when range has changed */
     var onRange = ugraph_noop;
     /* callback when range has changed because of local dragging */
@@ -253,6 +255,12 @@ function ugraph_graph() {
 
       xScale.range([padding, width - padding]).domain([xmin, xmax]);
       yScale.range([height - padding, padding]).domain([ymin, ymax]);
+
+      $onExtent({
+        domain: {x: xmin, xend: xmax, y: ymin, yend: ymax},
+        width: width,
+        height: height
+      });
     }
 
     function stopDrag(x, y) {
@@ -271,10 +279,8 @@ function ugraph_graph() {
         currentFocus = {x0: xmn, x1: xmx};
       }
 
-      apply(function() {
-        $onFocus(currentFocus);
-        g.update();
-      });
+      $onFocus(currentFocus);
+      update();
     }
 
     function renderDrag(ctx, drag) {
@@ -365,6 +371,10 @@ function ugraph_graph() {
       onFocus({$focus: focus});
     }
 
+    function $onExtent(extent) {
+      onExtent({$extent: extent});
+    }
+
     function $onRange(range) {
       onRange({$range: range});
     }
@@ -427,10 +437,7 @@ function ugraph_graph() {
       }
     }
 
-    function g() {
-    }
-
-    g.checkSize = function() {
+    function checkSize() {
       var newSize = sizer(element);
       var dirty = false;
 
@@ -449,24 +456,20 @@ function ugraph_graph() {
       }
 
       return dirty;
-    };
+    }
 
-    g.resize = function(newSource) {
-      var dirty = false;
-
-      if (g.checkSize())
-        dirty = true;
+    function checkState(newSource) {
+      var dirty = checkSize();
 
       if (!!newSource && source !== newSource) {
         source = newSource;
         dirty = true;
       }
 
-      if (dirty)
-        g.update();
-    };
+      return dirty;
+    }
 
-    g.update = function() {
+    function update() {
       // nothing to render...
       if (!source || !width || !height)
         return;
@@ -500,6 +503,19 @@ function ugraph_graph() {
 
       graphRendered = false;
       render();
+    }
+
+    function g() {
+    }
+
+    g.eventResize = function() {
+      if (checkState())
+        apply(update);
+    };
+
+    g.resize = function(newSource) {
+      if (checkState(newSource))
+        update();
     };
 
     g.updateAutoXval = function(_) {
@@ -527,7 +543,7 @@ function ugraph_graph() {
         return;
 
       currentFocus = _;
-      g.update();
+      update();
       $onFocus(currentFocus);
     };
 
@@ -541,7 +557,7 @@ function ugraph_graph() {
         return;
 
       renderer = _renderer;
-      g.update();
+      update();
     };
 
     g.updatePadding = function(_) {
@@ -551,7 +567,7 @@ function ugraph_graph() {
         return;
 
       padding = _;
-      g.update();
+      update();
     };
 
     g.updateHighlight = function(_) {
@@ -563,7 +579,7 @@ function ugraph_graph() {
         return;
 
       cadence = _;
-      g.update();
+      update();
     };
 
     g.updateZeroBased = function(_) {
@@ -573,7 +589,7 @@ function ugraph_graph() {
         return;
 
       zeroBased = _;
-      g.update();
+      update();
     };
 
     g.mousedown = function(e) {
@@ -632,6 +648,11 @@ function ugraph_graph() {
 
     g.onHoverHighlight = function(_) {
       onHoverHighlight = _;
+      return this;
+    };
+
+    g.onExtent = function(_) {
+      onExtent = _;
       return this;
     };
 

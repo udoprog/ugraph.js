@@ -32,8 +32,9 @@
     // state shared between each graph.
     $scope.state = {
       highlight: ugraph.NoHighlight,
-      range: ugraph.NoRange,
-      focus: ugraph.NoFocus
+      dragRange: ugraph.NoRange,
+      focus: ugraph.NoFocus,
+      extent: ugraph.NoExtent
     };
 
     $scope.refresh = function() {
@@ -133,21 +134,23 @@
   </div>
 
   <div>highlight: {x: {{state.highlight.x | json}}, data: {{state.highlight.data.length}}}</div>
-  <div>range: {{state.range}}</div>
+  <div>drag range: {{state.dragRange}}</div>
   <div>focus: {{state.focus}}</div>
+  <div>extent: {{state.extent}}</div>
 
   <div class="row" ng-repeat="source in sources" style="height: 400px;">
     <canvas
        ugraph="source"
        ugraph-auto-xval="state.highlight.x"
-       ugraph-auto-range="state.range"
+       ugraph-auto-range="state.dragRange"
        ugraph-auto-focus="state.focus"
        ugraph-renderer="options.renderer"
        ugraph-highlight="options.highlight"
        ugraph-zero-based="options.zeroBased"
        ugraph-cadence="cadence"
        ugraph-on-hover-highlight="state.highlight = $highlight"
-       ugraph-on-drag-range="state.range = $range"
+       ugraph-on-drag-range="state.dragRange = $range"
+       ugraph-on-extent="state.extent = $extent"
        ugraph-on-focus="state.focus = $focus"></canvas>
   </div>
 </body>

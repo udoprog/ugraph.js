@@ -19,6 +19,11 @@
           g.onHoverHighlight(onHoverHighlightFn.bind(onHoverHighlightFn, $scope));
         }
 
+        if (!!$attr.ugraphOnExtent) {
+          var onExtentFn = $parse($attr.ugraphOnExtent);
+          g.onExtent(onExtentFn.bind(onExtentFn, $scope));
+        }
+
         if (!!$attr.ugraphOnRange) {
           var onRangeFn = $parse($attr.ugraphOnRange);
           g.onRange(onRangeFn.bind(onRangeFn, $scope));
@@ -71,8 +76,10 @@
           $scope.$watch($attr.ugraphZeroBased, g.updateZeroBased.bind(g));
         }
 
+        var resize = g.resize.bind(g);
+
         if (!!$attr.ugraph) {
-          $scope.$watch($attr.ugraph, g.resize.bind(g));
+          $scope.$watch($attr.ugraph, resize);
         }
 
         var $w = angular.element($window);
@@ -81,20 +88,20 @@
         var mouseup = g.mouseup.bind(g);
         var mousemove = g.mousemove.bind(g);
         var mouseleave = g.mouseleave.bind(g);
-        var resize = g.resize.bind(g, null);
+        var eventResize = g.eventResize.bind(g, null);
 
         $element.bind('mousedown', mousedown);
         $element.bind('mouseup', mouseup);
         $element.bind('mousemove', mousemove);
         $element.bind('mouseleave', mouseleave);
-        $w.bind('resize', resize);
+        $w.bind('resize', eventResize);
 
         $scope.$on('$destroy', function() {
           $element.unbind('mousedown', mousedown);
           $element.unbind('mouseup', mouseup);
           $element.unbind('mousemove', mousemove);
           $element.unbind('mouseleave', mousemove);
-          $w.unbind('resize', resize);
+          $w.unbind('resize', eventResize);
         });
 
         $scope.$on('ugraph-resize', resize);
